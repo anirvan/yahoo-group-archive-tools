@@ -17,11 +17,11 @@ Requirements:
 
 Usage:
 ```
-mkdir output_dir
-yahoo-group-archive-tools.pl --source <archived-input-dir-name> --destination <output_dir>
+mkdir output-dir
+yahoo-group-archive-tools.pl --source <archived-input-dir> --destination <output-dir>
 ```
 
 ## See also
 
-* [IgnoredAmbiance's https://github.com/IgnoredAmbience/yahoo-group-archiver](Yahoo Group Archiver]
+* [IgnoredAmbiance's Yahoo Group Archiver](https://github.com/IgnoredAmbience/yahoo-group-archiver)
 * [ArchiveTeam's Yahoo Groups overview](https://www.archiveteam.org/index.php?title=Yahoo!_Groups)
