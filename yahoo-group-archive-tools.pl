@@ -121,10 +121,35 @@ sub run {
         my $email_epoch_date = $email_record->{postDate};
         my $email_message_id = $email_record->{msgId};
 
-        my $attachment_filename = $email_filename->filename;
-        $attachment_filename =~ s/_raw\.json$/_attachments/;
+        my %unseen_attachment_id_to_details;
+        {
+            my $email_meta_json_path = $email_filename->filename;
+            $email_meta_json_path =~ s/_raw\.json/.json/;
+            my $email_meta_file = io( $email_filename->filepath )
+                ->catfile($email_meta_json_path);
+            if ( $email_meta_file->exists and $email_meta_file->is_readable )
+            {
+                my $email_meta_json = $email_meta_file->slurp;
+                my $email_meta_record
+                    = eval { decode_json($email_meta_json) } || {};
+                if (     $email_meta_record
+                     and $email_meta_record->{attachmentsInfo} ) {
+                    foreach my $attachment_record (
+                                @{ $email_meta_record->{attachmentsInfo} } ) {
+                        if ( $attachment_record->{fileId} ) {
+                            $unseen_attachment_id_to_details{
+                                $attachment_record->{fileId}
+                            } = $attachment_record;
+                        }
+                    }
+                }
+            }
+        }
+
+        my $attachments_dir_path = $email_filename->filename;
+        $attachments_dir_path =~ s/_raw\.json$/_attachments/;
         my $attachments_dir
-            = io( $email_filename->filepath )->catdir($attachment_filename);
+            = io( $email_filename->filepath )->catdir($attachments_dir_path);
 
         if ( $email_record->{rawEmail} ) {
             my $raw_message = decode_entities( $email_record->{rawEmail} );
@@ -149,6 +174,7 @@ sub run {
                         if ( defined $body
                              and $body eq
                              '[ Attachment content not displayed ]' ) {
+
                             my $filename = eval {
                                 local $SIG{__WARN__} = sub { };
                                 $part->filename;
@@ -160,8 +186,16 @@ sub run {
                                                            $attachments_dir );
                                 if ($attachment_file_on_disk) {
                                     my $attachment_contents
-                                        = $attachment_file_on_disk->slurp;
+                                        = $attachment_file_on_disk->binary
+                                        ->all;
                                     $part->body_set($attachment_contents);
+                                    if ( $attachment_file_on_disk->filename
+                                         =~ m/^(\d+)-./ ) {
+                                        my $attachment_id = $1;
+                                        delete
+                                            $unseen_attachment_id_to_details{
+                                            $attachment_id};
+                                    }
                                 }
                             }
                         }
@@ -169,11 +203,50 @@ sub run {
                 );
             }
 
+            foreach my $remaining_attachment (
+                                   values %unseen_attachment_id_to_details ) {
+                if ( defined $remaining_attachment->{filename} ) {
+                    my $attachment_file_on_disk
+                        = find_the_most_likely_attachment_in_directory(
+                                            $remaining_attachment->{filename},
+                                            $attachments_dir );
+                    if ($attachment_file_on_disk) {
+                        my $new_attachment_part
+                            = Email::MIME->create(
+                            attributes => {
+                                filename => $remaining_attachment->{filename},
+                                disposition => "attachment",
+                                content_type =>
+                                    $remaining_attachment->{fileType},
+                            },
+                            body => $attachment_file_on_disk->binary->all,
+                            );
+
+                        if ($new_attachment_part) {
+
+                            # We ignore warnings because every once in
+                            # a while, we'll see encoding errors that
+                            # could have been fixed with RFC2047
+                            # encoding, but Email::MIME doesn't
+                            # support it yet. We could use
+                            # Email::MIME::RFC2047, but that doesn't
+                            # solve the problem entirely just yet.
+                            eval {
+                                local $SIG{__WARN__} = sub { };
+                                $email->parts_add( [$new_attachment_part] );
+                            };
+                        }
+                    }
+                }
+            }
+
             my $email_file = $destination_dir->file("$email_message_id.eml");
             $email_file->unlink;
             $email_file->utf8->print( $email->as_string );
 
-            say "$list_name -> $email_count of $email_max" if $verbose;
+            say
+                "[$list_name] wrote $email_count of $email_max, at $email_file"
+                if $verbose;
         }
     }
 }
