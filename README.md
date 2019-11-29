@@ -5,7 +5,7 @@ Once you've backed up a Yahoo Group using
 this script turns that into ordinary RFC822 email and mbox files that
 can be archived and processed by other tools.
 
-## Installation and usage
+## 1. Installation and usage
 
 Requirements:
 
@@ -36,14 +36,18 @@ The output directory will contain:
 * A consolidated mailbox file, `list.mbox`, for the entire history of
   the list.
 
-## Learn more
+## 2. Learn more
 
-* [IgnoredAmbiance's Yahoo Group Archiver](https://github.com/IgnoredAmbience/yahoo-group-archiver)
-* [ArchiveTeam's Yahoo Groups overview](https://www.archiveteam.org/index.php?title=Yahoo!_Groups)
+* This tool builds on output from [IgnoredAmbiance's Yahoo Group
+  Archiver](https://github.com/IgnoredAmbience/yahoo-group-archiver)
+* Read more about the Yahoo Groups archiving process, the tools people
+  are using, and the community of people doing the work at
+  [ArchiveTeam Yahoo Groups
+  project](https://www.archiveteam.org/index.php?title=Yahoo!_Groups)
 
-## Yahoo Groups API issues, and how we work around them
+## 3. Yahoo Groups API issues, and how we work around them
 
-### 1. Censored email addresses (major problem)
+### 3.1. Censored email addresses (major problem)
 
 The Yahoo Groups API redacts emails found in message headers and
 bodies, so "ceo@ford.com" becomes "ceo@...". When they redact email
@@ -55,31 +59,32 @@ etc.
 
 * And it also causes problems for humans trying to tell the difference
   between users with similar emails. For example, you can't tell the
-  difference between ceo@gm.com and ceo@toyota.com when both users'
+  difference between `ceo@gm.com` and `ceo@toyota.com` when both users'
   emails are truncated down to "ceo@..."
 
-This tool attempts to compensate for this. Because the API tells us
-the submitting Yahoo user's username, we can make a fake email domain
-that preserves the part before the @ in redacted emails, while being
-unique per user.
+This tool attempts to compensate for some of the redaction.
 
-* User ceo@ford.com> (Yahoo ID 'ceo123') emails the list
-    * Yahoo Groups saves that as "ceo@..."
-    * We turn that it into ceo@ceo123.yahoo.invalid
-* User ceo@toyota.com (Yahoo ID 'carluvr') emails list
-    * Yahoo Groups saves that as "ceo@..."
-    * We turn that it into ceo@carluvr.yahoo.invalid
+Because the API tells us the submitting Yahoo user's username, we can
+make a fake email domain that preserves the part before the @ in
+redacted emails, while being unique per user.
+
+* User `ceo@ford.com` (Yahoo ID `ceo123`) emails the list
+    * Yahoo Groups saves that as `ceo@...`
+    * We turn that it into `ceo@ceo123.yahoo.invalid`
+* User `ceo@toyota.com` (Yahoo ID `carluvr`) emails list
+    * Yahoo Groups saves that as `ceo@...`
+    * We turn that it into `ceo@carluvr.yahoo.invalid`
 
 We make this change in several headers that are guaranteed to include
-the original sender's email as part of it, including 'From' and
-'Message-Id'. We save the original redacted version as an addition X-
+the original sender's email as part of it, including `From` and
+`Message-Id`. We save the original redacted version as an addition X-
 header.
 
-* Yahoo says an email is "From: ceo@..."
-* We change that to "From: ceo@ceo123.yahoo.invalid"
-* We add a "X-Original-Yahoo-Groups-Redacted-From: ceo@..." header
+* Yahoo says an email is `From: ceo@...`
+* We change that to `From: ceo@ceo123.yahoo.invalid`
+* We add a `X-Original-Yahoo-Groups-Redacted-From:` `ceo@...` header
 
-### 2. Attachments
+### 3.2. Attachments
 
 The Yahoo Groups API detaches all attachments, and saves them
 separately. We do our best to stitch the emails back together,
@@ -88,9 +93,9 @@ attachment at the right place. In some cases, we're not able to
 identify which part an attachment goes, so we end up reattaching it to
 the whole email. In rare cases, we couldn't get the attachment from
 Yahoo, or they never saved the attachment, so you'll see email bodies
-that say '[ Attachment content not displayed ]'.
+that say `[ Attachment content not displayed ]`.
 
-### 3. Character encoding issues
+### 3.3. Character encoding issues
 
 Maybe because they have to redact email bodies, Yahoo appears to be
 decoding and recoding textual message bodies, and adding ^M linefeeds
@@ -102,7 +107,7 @@ the raw RFC822 text. We go ahead and delete both those linefeeds (to
 preserve the original format) and the U+FFFD characters (to keep the
 raw emails 7-bit clean).
 
-## Bugs and todo
+## 4. Bugs and todo
 
 * Closest file matches are currently checked against files on disk,
   rather than against those in the attachments info array. This means
@@ -114,7 +119,7 @@ raw emails 7-bit clean).
 * Maybe fix redacted headers in sub-parts so the message is valid
 * Need to verify that attached files round trip correctly
 
-## Feedback
+## 5. Feedback
 
 Feel free to use GitHub's issue tracker. If you need to contact me
 privately, DM me @anirvan on Twitter.
