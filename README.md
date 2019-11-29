@@ -9,11 +9,13 @@ Requirements:
 
 * Perl 5.14 or higher
 * several Perl modules [installed via CPAN](https://foswiki.org/Support.HowToInstallCpanModules):
-  - IO::All
+  - Email::Sender
   - HTML::Entities
+  - IO::All
   - JSON
   - Sort::Naturally
   - Text::Levenshtein::XS
+  - autodie
 
 Usage:
 ```
@@ -28,7 +30,6 @@ yahoo-group-archive-tools.pl --source <archived-input-dir> --destination <output
 
 # Bugs and Todo
 
-* mbox generation not built yet
 * Closest file matches are currently checked against files on disk,
   rather than against those in the attachments info array. This means
   we might accidentally pick the wrong attachment in cases where the
@@ -36,3 +37,5 @@ yahoo-group-archive-tools.pl --source <archived-input-dir> --destination <output
 * Some email parts are truncated at 64K. Need to investigate and flag.
 * Need a minimum level of verbosity, just to know it's working. Maybe
   have a --quiet mode?
+* Maybe fix redacted headers in sub-parts so the message is valid
+* Need to verify that attached files round trip correctly

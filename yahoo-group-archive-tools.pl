@@ -1,6 +1,7 @@
 #!perl
 
 use Email::MIME;
+use Email::Sender::Transport::Mbox;
 use Getopt::Long 'GetOptions';
 use HTML::Entities 'decode_entities';
 use IO::All 'io';
@@ -113,6 +114,7 @@ sub run {
 
     my $email_count = 0;
     my $email_max   = scalar @email_filenames;
+    my @generated_email_files;
     foreach my $email_filename (@email_filenames) {
         $email_count++;
 
@@ -121,7 +123,7 @@ sub run {
         my $email_epoch_date = $email_record->{postDate};
         my $email_message_id = $email_record->{msgId};
 
-        my %unseen_attachment_id_to_details;
+        my ( $sender_yahoo_id, %unseen_attachment_id_to_details );
         {
             my $email_meta_json_path = $email_filename->filename;
             $email_meta_json_path =~ s/_raw\.json/.json/;
@@ -160,6 +162,30 @@ sub run {
                 Email::MIME->new($raw_message);
             };
 
+         # fixup From line
+         # Original redacted From looks like "Fred Jones <fred.jones@...>"
+         # We also know the user's Yahoo username (e.g. "fjones123")
+         # So we make a globally unique addr that doesn't lose what's before @
+
+            foreach my $header_name ( 'From', 'X-Sender', 'Return-Path',
+                                      'Message-Id' ) {
+                my $yahoo_id = $email_record->{profile};
+                if ($yahoo_id) {
+                    my $header_text       = $email->header($header_name);
+                    my $fixed_header_text = $header_text;
+                    if ( $fixed_header_text
+                        =~ s{@\.\.\.>}{\@$yahoo_id.yahoo.invalid>}g
+                        or $fixed_header_text
+                        =~ s{^([^<]+@)\.\.\.$}{$1$yahoo_id.yahoo.invalid}g ) {
+                        $email->header_set(
+                              "X-Original-Yahoo-Groups-Redacted-$header_name",
+                              $header_text );
+                        $email->header_set( $header_name,
+                                            $fixed_header_text );
+                    }
+                }
+            }
+
             # fixup attachments
             if ( $attachments_dir->exists and $attachments_dir->is_readable )
             {
@@ -168,7 +194,7 @@ sub run {
                     sub {
                         my ($part) = @_;
                         local $SIG{__WARN__}
-                            = undef;               # can emit lots of warnings
+                            = undef;    # can emit lots of warnings
                         return if $part->subparts;
                         my $body = eval { $part->body };
                         if ( defined $body
@@ -188,6 +214,7 @@ sub run {
                                     my $attachment_contents
                                         = $attachment_file_on_disk->binary
                                         ->all;
+
                                     $part->body_set($attachment_contents);
                                     if ( $attachment_file_on_disk->filename
                                          =~ m/^(\d+)-./ ) {
@@ -243,12 +270,27 @@ sub run {
             my $email_file = $destination_dir->file("$email_message_id.eml");
             $email_file->unlink;
             $email_file->utf8->print( $email->as_string );
-
+            $email_file->close;
+            push @generated_email_files, $email_file;
             say
                 "[$list_name] wrote $email_count of $email_max, at $email_file"
                 if $verbose;
         }
     }
+
+    my $mbox_file = $destination_dir->file("list.mbox");
+    $mbox_file->unlink;
+    my $transport = Email::Sender::Transport::Mbox->new(
+                                           { filename => $mbox_file->name } );
+    foreach my $email_file (@generated_email_files) {
+        my $rfc822_email = $email_file->binary->slurp;
+        my $results      = $transport->send( $rfc822_email,
+                                   { from => 'yahoo-groups-archive-tools' } );
+        # TODO: check results
+    }
+    say "[$list_name] wrote consolidated mailbox at $mbox_file"
+	if $verbose;
+
 }
 
 sub find_the_most_likely_attachment_in_directory {
