@@ -1,9 +1,11 @@
-# yahoo-group-archive-tools
+# Yahoo Groups Archive Tools
 
-Converts a Yahoo group archive created by
-[yahoo-group-archiver](https://github.com/IgnoredAmbience/yahoo-group-archiver)
-into ordinary RFC822 email and mbox files that can be archived and
-processed by other tools.
+Once you've backed up a Yahoo Group using
+[yahoo-group-archiver](https://github.com/IgnoredAmbience/yahoo-group-archiver),
+this script turns that into ordinary RFC822 email and mbox files that
+can be archived and processed by other tools.
+
+## Installation and usage
 
 Requirements:
 
@@ -18,17 +20,18 @@ Requirements:
   - autodie
 
 Usage:
+
 ```
 mkdir output-dir
 yahoo-group-archive-tools.pl --source <archived-input-dir> --destination <output-dir>
 ```
 
-## See also
+## Learn more
 
 * [IgnoredAmbiance's Yahoo Group Archiver](https://github.com/IgnoredAmbience/yahoo-group-archiver)
 * [ArchiveTeam's Yahoo Groups overview](https://www.archiveteam.org/index.php?title=Yahoo!_Groups)
 
-## Yahoo Groups API caveats
+## Yahoo Groups API issues, and how we work around them
 
 ### 1. Censored email addresses (major problem)
 
@@ -89,7 +92,7 @@ the raw RFC822 text. We go ahead and delete both those linefeeds (to
 preserve the original format) and the U+FFFD characters (to keep the
 raw emails 7-bit clean).
 
-## Bugs and Todo
+## Bugs and todo
 
 * Closest file matches are currently checked against files on disk,
   rather than against those in the attachments info array. This means
@@ -100,3 +103,8 @@ raw emails 7-bit clean).
   have a --quiet mode?
 * Maybe fix redacted headers in sub-parts so the message is valid
 * Need to verify that attached files round trip correctly
+
+## Feedback
+
+Feel free to use GitHub's issue tracker. If you need to contact me
+privately, DM me @anirvan on Twitter.
