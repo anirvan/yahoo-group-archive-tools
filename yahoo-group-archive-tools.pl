@@ -99,6 +99,7 @@ sub run {
         and $destination_dir->is_readable;
 
     # 4. Validate list about data
+
     my $list_name;
     {
         my $about_file = io($source_dir)->catfile( 'about', 'about.json' );
@@ -110,18 +111,22 @@ sub run {
         $list_name = $about->{name} if $about->{name};
     }
 
-    # 5. Run
+    # 5. Write individual email files
 
     my $email_count = 0;
     my $email_max   = scalar @email_filenames;
     my @generated_email_files;
+
     foreach my $email_filename (@email_filenames) {
         $email_count++;
 
+        # 5.1 Open the raw.json file, load the email
+
         my $email_json       = $email_filename->slurp;
         my $email_record     = decode_json($email_json);
-        my $email_epoch_date = $email_record->{postDate};
         my $email_message_id = $email_record->{msgId};
+
+        # 5.2. Grab info on each attachment from [number].json files
 
         my ( $sender_yahoo_id, %unseen_attachment_id_to_details );
         {
@@ -148,10 +153,7 @@ sub run {
             }
         }
 
-        my $attachments_dir_path = $email_filename->filename;
-        $attachments_dir_path =~ s/_raw\.json$/_attachments/;
-        my $attachments_dir
-            = io( $email_filename->filepath )->catdir($attachments_dir_path);
+        # 5.3. Load the email from disk
 
         if ( $email_record->{rawEmail} ) {
             my $raw_message = decode_entities( $email_record->{rawEmail} );
@@ -162,10 +164,16 @@ sub run {
                 Email::MIME->new($raw_message);
             };
 
-         # fixup From line
-         # Original redacted From looks like "Fred Jones <fred.jones@...>"
-         # We also know the user's Yahoo username (e.g. "fjones123")
-         # So we make a globally unique addr that doesn't lose what's before @
+            # 5.4. Fix redacted email headers! Many of the headers
+            #      have the email domain names redacted, e.g. a 'From'
+            #      header set to "Fred Jones <fred.jones@...>". We
+            #      happen to know the user's Yahoo username (e.g.
+            #      "fjones123"), so we make a globally unique addr
+            #      that doesn't lose what's before the @, and put that
+            #      in place to replace the redaction ellipses. We also
+            #      add X-Original-Yahoo-Groups-Redacted-* headers to
+            #      store the original redacted versions. This process
+            #      may interfere with verifying DKIM signing!
 
             foreach my $header_name ( 'From', 'X-Sender', 'Return-Path',
                                       'Message-Id' ) {
@@ -186,7 +194,16 @@ sub run {
                 }
             }
 
-            # fixup attachments
+            # 5.5. Attachments were detached, so we go through all the
+            #      message parts, try to guess which attachments go
+            #      where, and manually reattach them
+
+            my $attachments_dir_path = $email_filename->filename;
+            $attachments_dir_path =~ s/_raw\.json$/_attachments/;
+            my $attachments_dir
+                = io( $email_filename->filepath )
+                ->catdir($attachments_dir_path);
+
             if ( $attachments_dir->exists and $attachments_dir->is_readable )
             {
                 local $SIG{__WARN__} = sub { };
@@ -230,6 +247,13 @@ sub run {
                 );
             }
 
+            # 5.6. In some cases, there can be attachments that were
+            #      not re-attached because we didn't find a reference
+            #      to them in one of the message parts. In those
+            #      cases, we go through the list of un-reattached
+            #      attachments, and manually add those to the email as
+            #      final parts.
+
             foreach my $remaining_attachment (
                                    values %unseen_attachment_id_to_details ) {
                 if ( defined $remaining_attachment->{filename} ) {
@@ -267,6 +291,8 @@ sub run {
                 }
             }
 
+            # 5.7. Write the RFC822 email to disk
+
             my $email_file = $destination_dir->file("$email_message_id.eml");
             $email_file->unlink;
             $email_file->utf8->print( $email->as_string );
@@ -278,6 +304,10 @@ sub run {
         }
     }
 
+    # 6. Write mbox file, consisting of all the RFC822 emails we wrote
+    #    to disk. Do this by re-reading the emails from disk, one at a
+    #    time, to lower memory usage for large lists.
+
     my $mbox_file = $destination_dir->file("list.mbox");
     $mbox_file->unlink;
     my $transport = Email::Sender::Transport::Mbox->new(
@@ -286,11 +316,12 @@ sub run {
         my $rfc822_email = $email_file->binary->slurp;
         my $results      = $transport->send( $rfc822_email,
                                    { from => 'yahoo-groups-archive-tools' } );
+
         # TODO: check results
     }
     say "[$list_name] wrote consolidated mailbox at $mbox_file"
-	if $verbose;
-
+        if $verbose;
+    return;
 }
 
 sub find_the_most_likely_attachment_in_directory {
