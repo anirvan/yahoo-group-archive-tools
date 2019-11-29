@@ -179,8 +179,7 @@ sub run {
             #      store the original redacted versions. This process
             #      may interfere with verifying DKIM signing!
 
-            foreach my $header_name ( 'From', 'X-Sender', 'Return-Path',
-                                      'Message-Id' ) {
+            foreach my $header_name ( 'From', 'X-Sender', 'Return-Path' ) {
                 my $yahoo_id = $email_record->{profile};
                 if ($yahoo_id) {
                     my $header_text       = $email->header($header_name);
