@@ -106,7 +106,7 @@ sub run {
         die "Can't access list description file at $about_file\n"
             unless $about_file->exists
             and $about_file->is_readable;
-        my $json  = $about_file->slurp;
+        my $json  = $about_file->all;
         my $about = decode_json($json);
         $list_name = $about->{name} if $about->{name};
     }
@@ -122,7 +122,7 @@ sub run {
 
         # 5.1 Open the raw.json file, load the email
 
-        my $email_json       = $email_filename->slurp;
+        my $email_json       = $email_filename->all;
         my $email_record     = decode_json($email_json);
         my $email_message_id = $email_record->{msgId};
 
@@ -136,7 +136,7 @@ sub run {
                 ->catfile($email_meta_json_path);
             if ( $email_meta_file->exists and $email_meta_file->is_readable )
             {
-                my $email_meta_json = $email_meta_file->slurp;
+                my $email_meta_json = $email_meta_file->all;
                 my $email_meta_record
                     = eval { decode_json($email_meta_json) } || {};
                 if (     $email_meta_record
@@ -312,12 +312,12 @@ sub run {
     $mbox_file->unlink;
     my $transport = Email::Sender::Transport::Mbox->new(
                                            { filename => $mbox_file->name } );
+
+    # need to check results after write!
     foreach my $email_file (@generated_email_files) {
-        my $rfc822_email = $email_file->binary->slurp;
+        my $rfc822_email = $email_file->binary->all;
         my $results      = $transport->send( $rfc822_email,
                                    { from => 'yahoo-groups-archive-tools' } );
-
-        # TODO: check results
     }
     say "[$list_name] wrote consolidated mailbox at $mbox_file"
         if $verbose;
