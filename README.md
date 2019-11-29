@@ -49,20 +49,20 @@ The output directory will contain:
 
 ### 3.1. Censored email addresses (major problem)
 
-The Yahoo Groups API redacts emails found in message headers and
-bodies, so "ceo@ford.com" becomes "ceo@...". When they redact email
-addresses found in headers, they mess with MessageIDs, From lines,
-etc.
+The Yahoo Groups API redacts emails found in message headers. For
+example, they'll rewrite `ceo@ford.com` as `ceo@...`.
 
-* In some cases, deleting hostnames from headers causes the emails to
-  be unparseable by client software that expect valid hostnames.
+Why is this bad?
 
-* And it also causes problems for humans trying to tell the difference
-  between users with similar emails. For example, you can't tell the
-  difference between `ceo@gm.com` and `ceo@toyota.com` when both users'
-  emails are truncated down to "ceo@..."
+* Deleting hostnames from headers could cause the emails to be
+  unparseable by client software expecting valid hostnames.
 
-This tool attempts to compensate for some of the redaction.
+* It can also cause problems for humans trying to tell the difference
+  between users. For example, you can't tell the difference between
+  `ceo@ford.com` and `ceo@toyota.com` when both are truncated to
+  `ceo@...`.
+
+#### How we're trying to fix it
 
 Because the API tells us the submitting Yahoo user's username, we can
 make a fake email domain that preserves the part before the @ in
@@ -82,18 +82,22 @@ header.
 
 * Yahoo says an email is `From: ceo@...`
 * We change that to `From: ceo@ceo123.yahoo.invalid`
-* We add a `X-Original-Yahoo-Groups-Redacted-From:` `ceo@...` header
+* We save the original version in a `X-Original-Yahoo-Groups-Redacted-From:` `ceo@...` header
 
 ### 3.2. Attachments
 
 The Yahoo Groups API detaches all attachments, and saves them
-separately. We do our best to stitch the emails back together,
-carefully walking through the MIME structure to attach the right
-attachment at the right place. In some cases, we're not able to
-identify which part an attachment goes, so we end up reattaching it to
-the whole email. In rare cases, we couldn't get the attachment from
-Yahoo, or they never saved the attachment, so you'll see email bodies
-that say `[ Attachment content not displayed ]`.
+separately.
+
+#### Our solution
+
+We try stitch the emails back together, navigating through the MIME
+structure to attach the right attachment at the right place. In some
+cases, we're not able to identify which part an attachment goes, so we
+end up reattaching it to the whole email. In rare cases, we couldn't
+get the attachment from Yahoo, or they never saved the attachment, so
+you'll see email bodies that say
+`[ Attachment content not displayed ]`.
 
 ### 3.3. Character encoding issues
 
@@ -103,12 +107,16 @@ at the end of every header line and MIME body part. When they have
 encoding/recoding issues, we'll sometimes see a random Unicode
 ["U+FFFD" replacement
 character](https://en.wikipedia.org/wiki/Specials_(Unicode_block)) in
-the raw RFC822 text. We go ahead and delete both those linefeeds (to
-preserve the original format) and the U+FFFD characters (to keep the
-raw emails 7-bit clean).
+the raw RFC822 text.
+
+#### Our solution
+
+We and delete both the linefeeds (to preserve the original format) and
+the U+FFFD characters (to keep the raw emails 7-bit clean).
 
 ## 4. Bugs and todo
 
+* When we munge MessageIDs, we also kill threading. Need to fix!
 * Closest file matches are currently checked against files on disk,
   rather than against those in the attachments info array. This means
   we might accidentally pick the wrong attachment in cases where the
