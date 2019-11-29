@@ -11,7 +11,6 @@ use Text::Levenshtein::XS;
 use autodie;
 use strict;
 use 5.14.0;
-binmode( STDOUT, ":utf8" );
 
 my ( $source_path, $destination_path, $verbose );
 
@@ -158,7 +157,12 @@ sub run {
         if ( $email_record->{rawEmail} ) {
             my $raw_message = decode_entities( $email_record->{rawEmail} );
 
-            $raw_message =~ s/\p{Zs}/ /gs;
+            # Not sure why I need to do this, but stripping CRs gets
+            # rid of random ^M characters in the header, and appears
+            # not to mess with attachments.
+            $raw_message =~ s/\r//g;
+            $raw_message =~ s/[^[:ascii:]]//g;    # ensure 7 bit safe
+
             my $email = eval {
                 local $SIG{__WARN__} = sub { };    # ignore warnings
                 Email::MIME->new($raw_message);
@@ -194,9 +198,9 @@ sub run {
                 }
             }
 
-            # 5.5. Attachments were detached, so we go through all the
-            #      message parts, try to guess which attachments go
-            #      where, and manually reattach them
+            # 5.5. Yahoo Groups API detaches all attachments, so we go
+            #      through all the message parts, try to guess which
+            #      attachments go where, and manually reattach them
 
             my $attachments_dir_path = $email_filename->filename;
             $attachments_dir_path =~ s/_raw\.json$/_attachments/;
@@ -295,7 +299,7 @@ sub run {
 
             my $email_file = $destination_dir->file("$email_message_id.eml");
             $email_file->unlink;
-            $email_file->utf8->print( $email->as_string );
+            $email_file->print( $email->as_string );
             $email_file->close;
             push @generated_email_files, $email_file;
             say
