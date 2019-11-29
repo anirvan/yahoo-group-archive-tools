@@ -28,8 +28,8 @@ yahoo-group-archive-tools.pl --source <archived-input-dir> --destination <output
 
 The output directory will contain:
 
-* Standalone email files for every email in the archive, e.g. "1.eml",
-  "2.eml". The emails won't be pristine, because Yahoo redacts email
+* Standalone email files for every email in the archive, e.g. `1.eml`,
+  `2.eml`. The emails won't be pristine, because Yahoo redacts email
   addresses (see that and other caveats below). The email IDs reflect
   those downloaded by yahoo-group-archiver, and it's normal to see
   some gaps in keeping with the original numering.
