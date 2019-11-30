@@ -85,7 +85,7 @@ We try stitch the emails back together, navigating through the [MIME structure](
 
 ### 3.3. Character encoding issues
 
-The Yahoo Groups API appears to be decoding and recoding textual message bodies, because we see Unicode ["U+FFFD" replacement characters](https://en.wikipedia.org/wiki/Specials_(Unicode_block)) in the raw RFC822 text that should be 7-bit clean. We're also seeing ^M linefeeds at the end of every header line and MIME body part.
+The Yahoo Groups API appears to be decoding and recoding textual message bodies, because [we see](https://yahoo.uservoice.com/forums/209451-us-groups/suggestions/9644478-displaying-raw-messages-is-not-8-bit-clean) Unicode ["U+FFFD" replacement characters](https://en.wikipedia.org/wiki/Specials_(Unicode_block)) in the raw RFC822 text that should be 7-bit clean. We're also seeing ^M linefeeds at the end of every header line and MIME body part.
 
 #### Our solution
 
