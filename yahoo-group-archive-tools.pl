@@ -1,19 +1,22 @@
 #!perl
 
+use Date::Format 'time2str';
 use Email::MIME;
 use Email::Sender::Transport::Mbox;
 use Getopt::Long 'GetOptions';
 use HTML::Entities 'decode_entities';
 use IO::All 'io';
 use JSON 'decode_json';
+use Log::Dispatch;
 use Sort::Naturally 'ncmp';
 use Text::Levenshtein::XS;
 use autodie;
 use strict;
 use 5.14.0;
 
-my ( $source_path, $destination_path, $verbose );
+my ( $source_path, $destination_path );
 
+my $log = logger();
 handle_options();
 run();
 
@@ -27,44 +30,60 @@ NAME
 
 SYNOPSIS
 
-    yahoo-group-archive-tools.pl --source <folder-with-archive> --destination <destination-folder>
+    yahoo-group-archive-tools.pl --source <folder-with-archive> --destination <destination-folder> -v
 
 OPTIONS
 
-    --help Print this help message
+    --source          specify root folder of yahoo-group-archiver output
+    --destination     specify destination directory, must exist already
+
+    --help            print this help message
+
+    --verbose or -v   verbose logging
+      or
+    --quiet           disable all but critical output
 
 DESCRIPTION
 
     Takes an archive folder created by the yahoo-group-archiver Python
-    script, and convert it into both individual emails, as well as a
+    script, and converts it into both individual emails, as well as a
     consolidated mbox file. These can be used for followup processing.
 
 END
 
-    my $get_help;
+    my $do_help         = 0;
+    my $verbosity_loud  = 0;
+    my $verbosity_quiet = 0;
     my $getopt_worked = GetOptions( 'source=s'      => \$source_path,
                                     'destination=s' => \$destination_path,
-                                    'verbose'       => \$verbose,
-                                    'help'          => \$get_help
+                                    'v|verbose'     => \$verbosity_loud,
+                                    'quiet'         => \$verbosity_quiet,
+                                    'help'          => \$do_help
     );
 
     unless ($getopt_worked) {
-        die "Error in command line arguments, rerun with -h for help\n";
+        die "Error in command line arguments, rerun with --help for help\n";
+    }
+
+    if ($verbosity_quiet) {
+        $log = logger(3);
+    } elsif ($verbosity_loud) {
+        $log = logger(1);
+    }
+
+    if ($do_help) {
+        say $help_text;
+        exit;
     }
 
     unless ($source_path) {
-        die "Need a --source directory, rerun with -h for help\n";
+        die "Need a --source directory, rerun with --help for help\n";
 
     }
 
     unless ($destination_path) {
-        die "Need a --destination directory, rerun with -h for help\n";
+        die "Need a --destination directory, rerun with --help for help\n";
 
-    }
-
-    if ($get_help) {
-        say $help_text;
-        exit;
     }
 
 }
@@ -301,11 +320,16 @@ sub run {
             $email_file->print( $email->as_string );
             $email_file->close;
             push @generated_email_files, $email_file;
-            say
-                "[$list_name] wrote $email_count of $email_max, at $email_file"
-                if $verbose;
+            $log->info(
+                "[$list_name] wrote email $email_count of $email_max at $email_file"
+            );
         }
     }
+
+    $log->notice( "[$list_name] finished writing",
+                  scalar(@generated_email_files),
+                  "email files in $destination_dir"
+    );
 
     # 6. Write mbox file, consisting of all the RFC822 emails we wrote
     #    to disk. Do this by re-reading the emails from disk, one at a
@@ -322,8 +346,7 @@ sub run {
         my $results      = $transport->send( $rfc822_email,
                                    { from => 'yahoo-groups-archive-tools' } );
     }
-    say "[$list_name] wrote consolidated mailbox at $mbox_file"
-        if $verbose;
+    $log->notice("[$list_name] wrote consolidated mailbox at $mbox_file");
     return;
 }
 
@@ -360,4 +383,17 @@ sub find_the_most_likely_attachment_in_directory {
     }
 
     return;
+}
+
+sub logger {
+    my $min_log_level = shift // 2;
+    return Log::Dispatch->new(
+        outputs =>
+            [ [ 'Screen', min_level => $min_log_level, newline => 1 ] ],
+        callbacks => sub {
+            my %args = @_;
+            my $time = time2str( "%Y-%M-%d %H:%M:%S", time );
+            return "[$time] $args{message}";
+        }
+    );
 }

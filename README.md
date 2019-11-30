@@ -15,15 +15,16 @@ Requirements:
   - HTML::Entities
   - IO::All
   - JSON
+  - Log::Dispatch
   - Sort::Naturally
   - Text::Levenshtein::XS
   - autodie
 
-Usage:
+Basic usage:
 
 ```
 mkdir output-dir
-yahoo-group-archive-tools.pl --source <archived-input-dir> --destination <output-dir>
+yahoo-group-archive-tools.pl --source <archived-input-dir> --destination <output-dir> -v
 ```
 
 The output directory will contain:
