@@ -36,6 +36,7 @@ OPTIONS
 
     --source          specify root folder of yahoo-group-archiver output
     --destination     specify destination directory, must exist already
+                      (generated files will be written in subdirectories)
 
     --help            print this help message
 
@@ -47,7 +48,7 @@ DESCRIPTION
 
     Takes an archive folder created by the yahoo-group-archiver Python
     script, and converts it into both individual emails, as well as a
-    consolidated mbox file. These can be used for followup processing.
+    consolidated mbox file.
 
 END
 
@@ -319,8 +320,17 @@ sub run {
 
             # 5.7. Write the RFC822 email to disk
 
-            my $email_file = $destination_dir->file("$email_message_id.eml");
-            $email_file->unlink;
+            my $email_destination_dir = $destination_dir->catdir('email');
+            $email_destination_dir->mkdir
+                unless $email_destination_dir->exists;
+            die
+                "Can't write to email output directory $email_destination_dir\n"
+                unless $email_destination_dir->exists
+                and $email_destination_dir->is_readable;
+
+            my $email_file
+                = $email_destination_dir->catfile("$email_message_id.eml");
+            $email_file->unlink if $email_file->exists;
             $email_file->print( $email->as_string );
             $email_file->close;
             push @generated_email_files, $email_file;
@@ -332,14 +342,21 @@ sub run {
 
     $log->notice( "[$list_name] finished writing",
                   scalar(@generated_email_files),
-                  "email files in $destination_dir"
+                  "email files in $destination_dir/email"
     );
 
     # 6. Write mbox file, consisting of all the RFC822 emails we wrote
     #    to disk. Do this by re-reading the emails from disk, one at a
     #    time, to lower memory usage for large lists.
 
-    my $mbox_file = $destination_dir->file('list.mbox');
+    my $mbox_destination_dir = $destination_dir->catdir('mbox');
+    $mbox_destination_dir->mkdir
+        unless $mbox_destination_dir->exists;
+    die "Can't write to mbox output directory $mbox_destination_dir\n"
+        unless $mbox_destination_dir->exists
+        and $mbox_destination_dir->is_readable;
+
+    my $mbox_file = $mbox_destination_dir->catfile('list.mbox');
     $mbox_file->unlink;
     my $transport = Email::Sender::Transport::Mbox->new(
                                            { filename => $mbox_file->name } );

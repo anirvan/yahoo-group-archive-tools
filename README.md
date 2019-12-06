@@ -29,22 +29,13 @@ yahoo-group-archive-tools.pl --source <archived-input-dir> --destination <output
 
 The output directory will contain:
 
-* Standalone email files for every email in the archive, e.g. `1.eml`,
-  `2.eml`. The emails won't be pristine, because Yahoo redacts email
-  addresses (see that and other caveats below). The email IDs reflect
-  those downloaded by yahoo-group-archiver, and it's normal to see
-  some gaps in keeping with the original numering.
-* A consolidated mailbox file, `list.mbox`, for the entire history of
-  the list.
+* An `email` folder containing standalone email files for every email in the archive, e.g. `email/1.eml`, `email/2.eml`. The emails won't be pristine, because Yahoo redacts email addresses (see that and other caveats below). The email IDs reflect those downloaded by yahoo-group-archiver, and it's normal to see some gaps in keeping with the original numering.
+* A consolidated mailbox file, `mbox/list.mbox`, for the entire history of the list.
 
 ## 2. Learn more
 
-* This tool builds on output from [IgnoredAmbiance's Yahoo Group
-  Archiver](https://github.com/IgnoredAmbience/yahoo-group-archiver)
-* Read more about the Yahoo Groups archiving process, the tools people
-  are using, and the community of people doing the work at
-  [ArchiveTeam Yahoo Groups
-  project](https://www.archiveteam.org/index.php?title=Yahoo!_Groups)
+* This tool builds on output from [IgnoredAmbiance's Yahoo Group Archiver](https://github.com/IgnoredAmbience/yahoo-group-archiver)
+* Read more about the Yahoo Groups archiving process, the tools people are using, and the community of people doing the work at [ArchiveTeam Yahoo Groups project](https://www.archiveteam.org/index.php?title=Yahoo!_Groups)
 
 ## 3. Yahoo Groups API issues, and how we work around them
 
