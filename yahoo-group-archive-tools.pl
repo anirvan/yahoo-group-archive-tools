@@ -309,7 +309,8 @@ sub run {
                             # solve the problem entirely just yet.
                             eval {
                                 local $SIG{__WARN__} = sub { };
-                                $email->parts_add( [$new_attachment_part] );
+                                return $email->parts_add(
+                                                     [$new_attachment_part] );
                             };
                         }
                     }
@@ -338,7 +339,7 @@ sub run {
     #    to disk. Do this by re-reading the emails from disk, one at a
     #    time, to lower memory usage for large lists.
 
-    my $mbox_file = $destination_dir->file("list.mbox");
+    my $mbox_file = $destination_dir->file('list.mbox');
     $mbox_file->unlink;
     my $transport = Email::Sender::Transport::Mbox->new(
                                            { filename => $mbox_file->name } );
