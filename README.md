@@ -62,18 +62,14 @@ Why is this bad?
 
 Because the API tells us the submitting Yahoo user's username, we can make a fake email domain that preserves the part before the @ in redacted emails, while being unique per user.
 
-* User `ceo@ford.com` (Yahoo ID `ceo123`) emails the list
-    * Yahoo Groups saves that as `ceo@...`
-    * We turn that it into `ceo@ceo123.yahoo.invalid`
-* User `ceo@toyota.com` (Yahoo ID `carluvr`) emails list
-    * Yahoo Groups saves that as `ceo@...`
-    * We turn that it into `ceo@carluvr.yahoo.invalid`
+* Imagine the CEO of Ford, `ceo@ford.com` (Yahoo ID `fordfan`), emails the list:
+    * Yahoo Groups redacts the hostname, and saves that as `ceo@...`
+    * We turn that it into `ceo@fordfan.yahoo.invalid`
+* Then the CEO of Toyota, `ceo@toyota.com` (Yahoo ID `toyotalover123`), emails the list:
+    * Yahoo Groups _also_ saves that as `ceo@...` even though this is a totally different person
+    * But we turn that email it into `ceo@toyotalover123.yahoo.invalid`, which is different from `ceo@fordfan.yahoo.invalid`
 
-We make this change in several headers that are guaranteed to include the original sender's email as part of it, including `From` and `Message-Id`. We save the original redacted version as an [X- header](https://tools.ietf.org/html/rfc822#section-4.7.4).
-
-* Yahoo says an email is `From: ceo@...`
-* We change that to `From: ceo@ceo123.yahoo.invalid`
-* We save the original as `X-Original-Yahoo-Groups-Redacted-From:` `ceo@...`
+We make this change in several headers that are guaranteed to include the original sender's email as part of it, including `From` and `Message-Id`. We save the original redacted version as an [X- header](https://tools.ietf.org/html/rfc822#section-4.7.4). For example, if Yahoo says an email is `From: ceo@...`, we modify that to `From: ceo@ceo123.yahoo.invalid`, and save the original as `X-Original-Yahoo-Groups-Redacted-From:` `ceo@...`.
 
 ### 3.2. Attachments
 
