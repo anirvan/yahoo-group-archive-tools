@@ -201,7 +201,10 @@ sub run {
             foreach my $header_name ( 'From', 'X-Sender', 'Return-Path' ) {
                 my $yahoo_id = $email_record->{profile};
                 if ($yahoo_id) {
-                    my $header_text       = $email->header($header_name);
+                    my $header_text = eval {
+                        local $SIG{__WARN__} = sub { };    # ignore warnings
+                        $email->header($header_name);
+                    } // '';
                     my $fixed_header_text = $header_text;
                     if ( $fixed_header_text
                         =~ s{@\.\.\.>}{\@$yahoo_id.yahoo.invalid>}g
