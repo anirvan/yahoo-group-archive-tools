@@ -244,6 +244,11 @@ sub run {
                         return if $part->subparts;
 
                         my $body = eval { $part->body };
+                        my $content_type = eval {
+                            local $SIG{__WARN__} = sub { };
+                            return $part->content_type;
+                        };
+
                         if ( defined $body
                              and $body eq
                              '[ Attachment content not displayed ]' ) {
@@ -297,11 +302,6 @@ sub run {
                                     return $part->filename;
                                 };
 
-                                my $content_type = eval {
-                                    local $SIG{__WARN__} = sub { };
-                                    return $part->content_type;
-                                };
-
                                 my $error_message;
                                 if ($filename) {
                                     $error_message
@@ -318,14 +318,17 @@ sub run {
                                                $part->header_str(
                                                         'Content-Disposition')
                                 );
+                                $part->header_str_set(
+                                        'X-Original-Content-Id' =>
+                                            $part->header_str('Content-Id') );
 
                                 $part->header_str_set(
                                         'X-Yahoo-Groups-Attachment-Not-Found',
                                         'true' );
                                 $part->header_str_set(
                                              'Content-Type' => 'text/plain' );
-                                $part->header_str_set(
-                                                'Content-Disposition' => '' );
+                                $part->header_str_set('Content-Disposition');
+                                $part->header_str_set('Content-ID');
                                 $part->content_type_set('text/plain');
                                 $part->charset_set('UTF-8');
                                 $part->body_str_set($error_message);
@@ -333,7 +336,6 @@ sub run {
                         }
                     }
                 );
-
             }
 
             # 5.6. In some cases, there can be attachments that were
