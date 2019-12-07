@@ -294,7 +294,7 @@ sub run {
                             unless ($attached_the_attachment) {
 
                                 $log->debug(
-                                    "[$list_name] email $email_message_id attachment could not be found"
+                                    "[$list_name] message $email_message_id: an attachment could not be found"
                                 );
 
                                 my $filename = eval {
@@ -400,15 +400,14 @@ sub run {
             $email_file->close;
             push @generated_email_files, $email_file;
             $log->info(
-                "[$list_name] wrote email $email_count of $email_max at $email_file"
+                "[$list_name] message $email_message_id: wrote email at $email_file ($email_count of $email_max)"
             );
         }
     }
 
-    $log->notice( "[$list_name] finished writing",
+    $log->notice( "[$list_name] wrote",
                   scalar(@generated_email_files),
-                  "email files in $destination_dir/email"
-    );
+                  "email files in $destination_dir/email" );
 
     # 6. Write mbox file, consisting of all the RFC822 emails we wrote
     #    to disk. Do this by re-reading the emails from disk, one at a
