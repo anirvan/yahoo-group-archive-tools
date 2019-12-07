@@ -70,7 +70,15 @@ The Yahoo Groups API detaches all attachments, and saves them in a separate plac
 
 We try stitch the emails back together, navigating through the [MIME structure](https://en.wikipedia.org/wiki/MIME) to attach the right attachment at the right place. In some cases, we're not able to identify where in the email MIME structure an attachment goes, so we reattach orphaned attachments to the whole email. In some cases, Yahoo doesn't give us the attachment, so we replace the attachment with a text part containing an error message, with original attachment-related headers added (`X-Yahoo-Groups-Attachment-Not-Found`, `X-Original-Content-Type`, `X-Original-Content-Disposition`, `X-Original-Content-Id`).
 
-### 3.3. Character encoding issues
+### 3.3. Long emails being truncated
+
+Email messages with over 64 KB in text are forcibly truncated, and a truncation message will be dropped into the middle of encoded content.
+
+#### Our solution
+
+Whenever we see an email body that end with `(Message over 64 KB, truncated)`, we remove that string from the broken message part, and pray that downstream parsers will be able to deal with truncated HTML, Base64, etc. We mark these message parts with a `X-Yahoo-Groups-Content-Truncated` header.
+
+### 3.4. Character encoding issues
 
 The Yahoo Groups API appears to be decoding and recoding textual message bodies, because [we see](https://yahoo.uservoice.com/forums/209451-us-groups/suggestions/9644478-displaying-raw-messages-is-not-8-bit-clean) Unicode ["U+FFFD" replacement characters](https://en.wikipedia.org/wiki/Specials_(Unicode_block)) in the raw RFC822 text that should be 7-bit clean. We're also seeing ^M linefeeds at the end of every header line and MIME body part.
 
@@ -80,11 +88,11 @@ We remove invalid linefeeds and 8-bit characters from 7-bit RFC822 text.
 
 ## 4. Bugs and todo
 
+* Add a workflow to convert emails and mailboxes to PDF using [email2pdf](https://github.com/andrewferrier/email2pdf)
 * Closest file matches are currently checked against files on disk, rather than against those in the attachments info array. This means we might accidentally pick the wrong attachment in cases where the correct attachment hadn't been downloaded to disk.
-* Some email parts are truncated at 64K. Need to investigate and flag.
 * Maybe fix redacted headers in sub-parts so the message is valid
 * Need to verify that attached files round trip correctly
 
 ## 5. Feedback
 
-Feel free to use GitHub's issue tracker. If you need to contact me privately, DM me @anirvan on Twitter.
+Feel free to use GitHub's issue tracker. If you need to contact me privately, DM me [@anirvan](https://twitter.com/anirvan) on Twitter.

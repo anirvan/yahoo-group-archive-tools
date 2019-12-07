@@ -243,14 +243,15 @@ sub run {
                             = undef;    # can emit lots of warnings
                         return if $part->subparts;
 
-                        my $body = eval { $part->body };
+                        my $body     = eval { $part->body };
+                        my $body_raw = eval { $part->body_raw };
                         my $content_type = eval {
                             local $SIG{__WARN__} = sub { };
                             return $part->content_type;
                         };
 
-                        if ( defined $body
-                             and $body eq
+                        if ( defined $body_raw
+                             and $body_raw eq
                              '[ Attachment content not displayed ]' ) {
 
                             my $attached_the_attachment = 0;
@@ -332,6 +333,39 @@ sub run {
                                 $part->content_type_set('text/plain');
                                 $part->charset_set('UTF-8');
                                 $part->body_str_set($error_message);
+                            }
+                        } elsif ( defined $body_raw
+                                and $body_raw
+                                =~ m/\n\(Message over 64 KB, truncated\)$/ ) {
+                            my $fixed_body_raw = $body_raw;
+                            if ( $fixed_body_raw
+                                 =~ s/\n\(Message over 64 KB, truncated\)$// )
+                            {
+                                $log->debug(
+                                    "[$list_name] message $email_message_id: textual content was truncated at 64 KB, trying to repair"
+                                );
+                                $part->header_str_set(
+                                           'X-Yahoo-Groups-Content-Truncated',
+                                           'true' );
+
+				# We need to alter the raw body
+				# (before handling encodings), but
+				# Email::MIME is too smart, in that it
+				# prevents us from directly editing
+				# the encoded body. We get around this
+				# by switching it to binary (which
+				# avoids content type smarts), making
+				# the change, then changing back to
+				# the original encoding.
+                                my $original_cte = $part->header_str(
+                                                 'Content-Transfer-Encoding');
+                                $part->header_str_set(
+                                                  'Content-Transfer-Encoding',
+                                                  'binary' );
+                                $part->body_set($fixed_body_raw);
+                                $part->header_str_set(
+                                                  'Content-Transfer-Encoding',
+                                                  $original_cte );
                             }
                         }
                     }
