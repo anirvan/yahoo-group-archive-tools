@@ -52,13 +52,15 @@ DESCRIPTION
 
 END
 
-    my $do_help         = 0;
-    my $verbosity_loud  = 0;
-    my $verbosity_quiet = 0;
+    my $do_help           = 0;
+    my $verbosity_loudest = 0;
+    my $verbosity_loud    = 0;
+    my $verbosity_quiet   = 0;
     my $getopt_worked = GetOptions( 'source=s'      => \$source_path,
                                     'destination=s' => \$destination_path,
                                     'v|verbose'     => \$verbosity_loud,
                                     'quiet'         => \$verbosity_quiet,
+                                    'noisy'         => \$verbosity_loudest,
                                     'help'          => \$do_help
     );
 
@@ -70,6 +72,8 @@ END
         $log = logger(3);
     } elsif ($verbosity_loud) {
         $log = logger(1);
+    } elsif ($verbosity_loudest) {
+        $log = logger(0);
     }
 
     if ($do_help) {
@@ -230,7 +234,6 @@ sub run {
                 = io( $email_filename->filepath )
                 ->catdir($attachments_dir_path);
 
-            if ( $attachments_dir->exists and $attachments_dir->is_readable )
             {
                 local $SIG{__WARN__} = sub { };
                 $email->walk_parts(
@@ -239,38 +242,98 @@ sub run {
                         local $SIG{__WARN__}
                             = undef;    # can emit lots of warnings
                         return if $part->subparts;
+
                         my $body = eval { $part->body };
                         if ( defined $body
                              and $body eq
                              '[ Attachment content not displayed ]' ) {
 
+                            my $attached_the_attachment = 0;
+
                             my $filename = eval {
                                 local $SIG{__WARN__} = sub { };
                                 $part->filename;
                             };
+
                             if ( defined $filename and length $filename ) {
-                                my $attachment_file_on_disk
-                                    = find_the_most_likely_attachment_in_directory(
+                                if (     $attachments_dir->exists
+                                     and $attachments_dir->is_readable ) {
+                                    my $attachment_file_on_disk
+                                        = find_the_most_likely_attachment_in_directory(
                                                            $filename,
                                                            $attachments_dir );
-                                if ($attachment_file_on_disk) {
-                                    my $attachment_contents
-                                        = $attachment_file_on_disk->binary
-                                        ->all;
+                                    if ($attachment_file_on_disk) {
+                                        my $attachment_contents
+                                            = $attachment_file_on_disk
+                                            ->binary->all;
 
-                                    $part->body_set($attachment_contents);
-                                    if ( $attachment_file_on_disk->filename
-                                         =~ m/^(\d+)-./ ) {
-                                        my $attachment_id = $1;
-                                        delete
-                                            $unseen_attachment_id_to_details{
-                                            $attachment_id};
+                                        $part->body_set($attachment_contents);
+                                        $attached_the_attachment = 1;
+                                        if ( $attachment_file_on_disk
+                                             ->filename =~ m/^(\d+)-./ ) {
+                                            my $attachment_id = $1;
+                                            delete
+                                                $unseen_attachment_id_to_details{
+                                                $attachment_id};
+                                        }
                                     }
                                 }
+                            }
+
+                            # Sometimes we just can't find the
+                            # attachment file. In that case, we change
+                            # the part body to a simple text error
+                            # message, and save the originals in
+                            # backup headers.
+
+                            unless ($attached_the_attachment) {
+
+                                $log->debug(
+                                    "[$list_name] email $email_message_id attachment could not be found"
+                                );
+
+                                my $filename = eval {
+                                    local $SIG{__WARN__} = sub { };
+                                    return $part->filename;
+                                };
+
+                                my $content_type = eval {
+                                    local $SIG{__WARN__} = sub { };
+                                    return $part->content_type;
+                                };
+
+                                my $error_message;
+                                if ($filename) {
+                                    $error_message
+                                        = qq{The original email contained an attachment named "$filename" but we could not retrieve it via the Yahoo Groups API.};
+                                } else {
+                                    $error_message
+                                        = qq{The original email contained an attachment of type "$content_type" but we could not retrieve it via the Yahoo Groups API.};
+                                }
+                                $part->header_str_set(
+                                      'X-Original-Content-Type' =>
+                                          $part->header_str('Content-Type') );
+                                $part->header_str_set(
+                                           'X-Original-Content-Disposition' =>
+                                               $part->header_str(
+                                                        'Content-Disposition')
+                                );
+
+                                $part->header_str_set(
+                                        'X-Yahoo-Groups-Attachment-Not-Found',
+                                        'true' );
+                                $part->header_str_set(
+                                             'Content-Type' => 'text/plain' );
+                                $part->header_str_set(
+                                                'Content-Disposition' => '' );
+                                $part->content_type_set('text/plain');
+                                $part->charset_set('UTF-8');
+                                $part->body_str_set($error_message);
                             }
                         }
                     }
                 );
+
             }
 
             # 5.6. In some cases, there can be attachments that were
@@ -418,3 +481,5 @@ sub logger {
         }
     );
 }
+
+1;

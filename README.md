@@ -68,7 +68,7 @@ The Yahoo Groups API detaches all attachments, and saves them in a separate plac
 
 #### Our solution
 
-We try stitch the emails back together, navigating through the [MIME structure](https://en.wikipedia.org/wiki/MIME) to attach the right attachment at the right place. In some cases, we're not able to identify where in the email MIME structure an attachment goes, so we reattach orphaned attachments to the whole email. In very rare cases, Yahoo doesn't give us the attachment, so the attachment body will be `[ Attachment content not displayed ]`, regardless of file format.
+We try stitch the emails back together, navigating through the [MIME structure](https://en.wikipedia.org/wiki/MIME) to attach the right attachment at the right place. In some cases, we're not able to identify where in the email MIME structure an attachment goes, so we reattach orphaned attachments to the whole email. In some cases, Yahoo doesn't give us the attachment, so we replace the attachment with a text part containing an error message, with original attachment-related headers added (`X-Yahoo-Groups-Attachment-Not-Found`, `X-Original-Content-Type`, `X-Original-Content-Disposition`).
 
 ### 3.3. Character encoding issues
 
