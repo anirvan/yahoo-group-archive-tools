@@ -82,7 +82,6 @@ We remove invalid linefeeds and 8-bit characters from 7-bit RFC822 text.
 
 * Closest file matches are currently checked against files on disk, rather than against those in the attachments info array. This means we might accidentally pick the wrong attachment in cases where the correct attachment hadn't been downloaded to disk.
 * Some email parts are truncated at 64K. Need to investigate and flag.
-* Need a minimum level of verbosity, just to know it's working. Maybe have a --quiet mode?
 * Maybe fix redacted headers in sub-parts so the message is valid
 * Need to verify that attached files round trip correctly
 
