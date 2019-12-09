@@ -8,6 +8,7 @@ Requirements:
 
 * Perl 5.14 or higher
 * several Perl modules [installed via CPAN](https://foswiki.org/Support.HowToInstallCpanModules):
+  - Email::MIME
   - Email::Sender
   - HTML::Entities
   - IO::All
