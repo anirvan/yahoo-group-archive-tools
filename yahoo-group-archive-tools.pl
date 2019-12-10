@@ -1,8 +1,10 @@
 #!perl
 
+use CAM::PDF;
 use Date::Format 'time2str';
 use Email::MIME;
 use Email::Sender::Transport::Mbox;
+use File::Temp;
 use Getopt::Long 'GetOptions';
 use HTML::Entities 'decode_entities';
 use IO::All 'io';
@@ -14,7 +16,8 @@ use autodie;
 use strict;
 use 5.14.0;
 
-my ( $source_path, $destination_path );
+my ( $source_path, $destination_path, $uniform_names, $run_pdf,
+     $email2pdf_path );
 
 my $log = logger();
 handle_options();
@@ -38,6 +41,13 @@ OPTIONS
     --destination     specify destination directory, must exist already
                       (generated files will be written in subdirectories)
 
+    --uniform-names   output files should have generic and consistent names
+                      (e.g. "list.mbox" intead of "my-friends-group.mbox")
+                      which can be helpful for mass processing
+
+    --pdf             use email2pdf to generate PDF files (experimental!)
+    --email2pdf       location of email2pdf Python script
+
     --help            print this help message
 
     --verbose or -v   verbose logging
@@ -58,10 +68,13 @@ END
     my $verbosity_quiet   = 0;
     my $getopt_worked = GetOptions( 'source=s'      => \$source_path,
                                     'destination=s' => \$destination_path,
+                                    'uniform-names' => \$uniform_names,
                                     'v|verbose'     => \$verbosity_loud,
                                     'quiet'         => \$verbosity_quiet,
                                     'noisy'         => \$verbosity_loudest,
-                                    'help'          => \$do_help
+                                    'help'          => \$do_help,
+                                    'pdf'           => \$run_pdf,
+                                    'email2pdf=s'   => \$email2pdf_path,
     );
 
     unless ($getopt_worked) {
@@ -89,6 +102,21 @@ END
     unless ($destination_path) {
         die "Need a --destination directory, rerun with --help for help\n";
 
+    }
+
+    if ($run_pdf) {
+        if ( !$email2pdf_path ) {
+            die "No --email2pdf path specified\n";
+        } elsif ( !-s $email2pdf_path ) {
+            die
+                "Can't find the email2pdf Python script at '$email2pdf_path'\n";
+        } elsif ( !-x $email2pdf_path ) {
+            die
+                "The email2pdf script at '$email2pdf_path' should be executable. Make sure it has the right #!python shbang line in line 1.\n";
+        }
+    } elsif ($email2pdf_path) {
+        die
+            "You specified an --email2pdf path, but not --pdf. Please rerun with --pdf.\n";
     }
 
 }
@@ -132,6 +160,14 @@ sub run {
         my $json  = $about_file->all;
         my $about = decode_json($json);
         $list_name = $about->{name} if $about->{name};
+    }
+
+    # 5. Generate uniform names which will be used for files
+    my $list_file_name_prefix = 'list';
+    if (    !$uniform_names
+         and $list_name !~ m/\s/
+         and length($list_name) <= 128 ) {
+        $list_file_name_prefix = $list_name;
     }
 
     # 5. Write individual email files
@@ -454,7 +490,8 @@ sub run {
         unless $mbox_destination_dir->exists
         and $mbox_destination_dir->is_readable;
 
-    my $mbox_file = $mbox_destination_dir->catfile('list.mbox');
+    my $mbox_file
+        = $mbox_destination_dir->catfile("$list_file_name_prefix.mbox");
     $mbox_file->unlink;
     my $transport = Email::Sender::Transport::Mbox->new(
                                            { filename => $mbox_file->name } );
@@ -466,6 +503,77 @@ sub run {
                                    { from => 'yahoo-groups-archive-tools' } );
     }
     $log->notice("[$list_name] wrote consolidated mailbox at $mbox_file");
+
+    if ($run_pdf) {
+
+        $log->notice(
+            qq{[$list_name] Attempting to run experimental email2pdf conversion. If this fails immediately, try running "$email2pdf_path -h" and make sure it returns help text.}
+        );
+
+        my $pdf_dir = $destination_dir->catdir('pdf-individual');
+        $pdf_dir->mkdir unless $pdf_dir->exists;
+        my $combined_pdf_dir = $destination_dir->catdir('pdf-complete');
+        $combined_pdf_dir->mkdir unless $combined_pdf_dir->exists;
+
+        my @pdf_files;
+        foreach my $email_file (@generated_email_files) {
+            my $pdf_filename = $email_file->filename;
+            $pdf_filename =~ s/\.eml/.pdf/;
+            my $final_pdf_file = $pdf_dir->catfile($pdf_filename);
+            build_pdf( $email_file, $final_pdf_file, $list_name );
+            if ( $final_pdf_file->exists ) {
+                $log->notice("[$list_name] created PDF $final_pdf_file");
+                push @pdf_files, $final_pdf_file;
+            } else {
+                $log->warning(
+                    "[$list_name] could not create PDF $final_pdf_file, skipping for now. Feel free to report the exact error message above as a bug report."
+                );
+            }
+        }
+
+    EachPdfFIleToAppend:
+        if (@pdf_files) {
+
+            $log->notice(
+                qq{[$list_name] Attempting to combine all the PDF files in $pdf_dir into a single PDF file. This might fail if memory is low. Feel free to report this as a bug.}
+            );
+
+            my $combined_pdf_file
+                = $combined_pdf_dir->catfile("$list_file_name_prefix.pdf");
+
+            my $first_pdf_file      = shift @pdf_files;
+            my $combined_pdf_object = CAM::PDF->new( $first_pdf_file->name )
+                || {
+                $log->warning(
+                    "[$list_name] could not create combined PDF file. CAM::PDF error is '$CAM::PDF::errstr'"
+                )
+                };
+            if ($combined_pdf_object) {
+                while ( my $pdf_file = shift @pdf_files ) {
+                    my $this_pdf_object = CAM::PDF->new( $pdf_file->name )
+                        || do {
+                        $log->warning(
+                            "[$list_name] could not append $pdf_file to combined PDF file, so skipping this email. CAM::PDF error is '$CAM::PDF::errstr'"
+                        );
+                        next EachPdfFIleToAppend;
+                        };
+                    $combined_pdf_object->appendPDF($this_pdf_object)
+                        || do {
+                        $log->warning(
+                            "[$list_name] could not append $pdf_file to combined PDF file, so skipping this email. CAM::PDF error is '$CAM::PDF::errstr'"
+                        );
+                        next EachPdfFIleToAppend;
+                        };
+                }
+            }
+            $combined_pdf_object->cleanoutput( $combined_pdf_file->name );
+            $log->notice(
+                "[$list_name] wrote consolidated PDF file at $combined_pdf_file"
+            );
+        }
+
+    }
+
     return;
 }
 
@@ -499,6 +607,27 @@ sub find_the_most_likely_attachment_in_directory {
     if (     @attachments_by_distance
          and $attachments_by_distance[0]->{distance} <= 0.8 ) {
         return $attachments_by_distance[0]->{file};
+    }
+
+    return;
+}
+
+sub build_pdf {
+    my ( $email_file, $final_pdf_file, $list_name ) = @_;
+
+    # make temp dir
+    my $pdf_build_dir_path = File::Temp->newdir();
+    my $pdf_build_dir      = io($pdf_build_dir_path)->dir;
+    $pdf_build_dir->chdir;
+
+    my $temp_pdf_file = $pdf_build_dir->catfile('out.pdf');
+
+    system( $email2pdf_path, '--headers', '-i', $email_file->name,
+            '--output-file', $temp_pdf_file->name, '--mostly-hide-warnings' );
+    if ( $temp_pdf_file->exists ) {
+        $temp_pdf_file->close;
+        $final_pdf_file->unlink if $final_pdf_file->exists;
+        $temp_pdf_file > $final_pdf_file;
     }
 
     return;

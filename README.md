@@ -4,10 +4,11 @@ Once you've backed up a Yahoo Group using [yahoo-group-archiver](https://github.
 
 ## 1. Installation and usage
 
-Requirements:
+### Requirements
 
 * Perl 5.14 or higher
 * several Perl modules [installed via CPAN](https://foswiki.org/Support.HowToInstallCpanModules):
+  - CAM::PDF
   - Email::MIME
   - Email::Sender
   - HTML::Entities
@@ -18,17 +19,30 @@ Requirements:
   - Text::Levenshtein::XS
   - autodie
 
-Basic usage:
+### Basic usage:
 
 ```
 mkdir output-dir
 yahoo-group-archive-tools.pl --source <archived-input-dir> --destination <output-dir>
 ```
 
+### Experimental PDF support
+
+Many non-technical users won't know what to do with an mbox file, but will appreciate getting a PDF file containing all the emails in the list. You can enable experimental PDF support by installing Andrew Ferrier's [email2pdf](https://github.com/andrewferrier/email2pdf) script.
+
+```
+mkdir output-dir
+yahoo-group-archive-tools.pl --source <archived-input-dir> --destination <output-dir> --pdf --email2pdf <path to email2pdf Python script>
+```
+
+### Output
+
 The output directory will contain:
 
 * An `email` folder containing standalone email files for every email in the archive, e.g. `email/1.eml`, `email/2.eml`. The emails won't be pristine, because Yahoo redacts email addresses (see that and other caveats below). The email IDs reflect those downloaded by yahoo-group-archiver, and it's normal to see some gaps in keeping with the original numering.
 * A consolidated mailbox file, `mbox/list.mbox`, for the entire history of the list.
+* With PDF support enabled, a `pdf-individual` directory containing individual PDFs for every email
+* With PDF support enabled, a `pdf-combined` directory with a single PDF file containg every email
 
 ## 2. Learn more
 
