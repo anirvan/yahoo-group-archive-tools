@@ -22,7 +22,7 @@ Basic usage:
 
 ```
 mkdir output-dir
-yahoo-group-archive-tools.pl --source <archived-input-dir> --destination <output-dir> -v
+yahoo-group-archive-tools.pl --source <archived-input-dir> --destination <output-dir>
 ```
 
 The output directory will contain:

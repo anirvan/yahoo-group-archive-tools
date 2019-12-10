@@ -294,8 +294,8 @@ sub run {
 
                             unless ($attached_the_attachment) {
 
-                                $log->debug(
-                                    "[$list_name] message $email_message_id: an attachment could not be found"
+                                $log->warning(
+                                    "[$list_name] message $email_message_id: an attachment could not be found, skipping"
                                 );
 
                                 my $filename = eval {
