@@ -28,7 +28,7 @@ yahoo-group-archive-tools.pl --source <archived-input-dir> --destination <output
 
 ### Experimental PDF support
 
-Many non-technical users won't know what to do with an mbox file, but will appreciate getting a PDF file containing all the emails in the list. You can enable experimental PDF support by installing Andrew Ferrier's [email2pdf](https://github.com/andrewferrier/email2pdf) script.
+Many non-technical users won't know what to do with an mbox file, but will appreciate getting a PDF file containing all the emails in the list. You can enable experimental PDF support by installing Andrew Ferrier's [email2pdf](https://github.com/andrewferrier/email2pdf) script. This is known to be buggy, and bug reports would be appreciated.
 
 ```
 mkdir output-dir
