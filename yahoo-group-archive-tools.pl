@@ -341,22 +341,22 @@ sub run {
                             if ( $fixed_body_raw
                                  =~ s/\n\(Message over 64 KB, truncated\)$// )
                             {
-                                $log->debug(
+                                $log->warning(
                                     "[$list_name] message $email_message_id: textual content was truncated at 64 KB, trying to repair"
                                 );
                                 $part->header_str_set(
                                            'X-Yahoo-Groups-Content-Truncated',
                                            'true' );
 
-				# We need to alter the raw body
-				# (before handling encodings), but
-				# Email::MIME is too smart, in that it
-				# prevents us from directly editing
-				# the encoded body. We get around this
-				# by switching it to binary (which
-				# avoids content type smarts), making
-				# the change, then changing back to
-				# the original encoding.
+                                # We need to alter the raw body
+                                # (before handling encodings), but
+                                # Email::MIME is too smart, in that it
+                                # prevents us from directly editing
+                                # the encoded body. We get around this
+                                # by switching it to binary (which
+                                # avoids content type smarts), making
+                                # the change, then changing back to
+                                # the original encoding.
                                 my $original_cte = $part->header_str(
                                                  'Content-Transfer-Encoding');
                                 $part->header_str_set(
