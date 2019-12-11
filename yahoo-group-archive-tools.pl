@@ -133,6 +133,11 @@ sub run {
     die "Can't access subfolder", $email_dir->name, " sub-folder\n"
         unless $email_dir->exists and $email_dir->is_readable;
 
+    my $global_attachments_dir = $source_dir->catdir('attachments');
+    unless ( $global_attachments_dir->exists ) {
+        undef $global_attachments_dir;
+    }
+
     # 2. Validate emails dir
 
     my @email_filenames = $email_dir->glob('*_raw.json');
@@ -163,6 +168,7 @@ sub run {
     }
 
     # 5. Generate uniform names which will be used for files
+
     my $list_file_name_prefix = 'list';
     if (    !$uniform_names
          and $list_name !~ m/\s/
@@ -170,7 +176,7 @@ sub run {
         $list_file_name_prefix = $list_name;
     }
 
-    # 5. Write individual email files
+    # 6. Write individual email files
 
     my $email_count = 0;
     my $email_max   = scalar @email_filenames;
@@ -179,15 +185,15 @@ sub run {
     foreach my $email_filename (@email_filenames) {
         $email_count++;
 
-        # 5.1 Open the raw.json file, load the email
+        # 6.1 Open the raw.json file, load the email
 
         my $email_json       = $email_filename->all;
         my $email_record     = decode_json($email_json);
         my $email_message_id = $email_record->{msgId};
 
-        # 5.2. Grab info on each attachment from [number].json files
+        # 6.2. Grab info on each attachment from [number].json files
 
-        my ( $sender_yahoo_id, %unseen_attachment_id_to_details );
+        my %unseen_attachment_file_id_to_details;
         {
             my $email_meta_json_path = $email_filename->filename;
             $email_meta_json_path =~ s/_raw\.json/.json/;
@@ -203,7 +209,7 @@ sub run {
                     foreach my $attachment_record (
                                 @{ $email_meta_record->{attachmentsInfo} } ) {
                         if ( $attachment_record->{fileId} ) {
-                            $unseen_attachment_id_to_details{
+                            $unseen_attachment_file_id_to_details{
                                 $attachment_record->{fileId}
                             } = $attachment_record;
                         }
@@ -212,7 +218,7 @@ sub run {
             }
         }
 
-        # 5.3. Load the email from disk
+        # 6.3. Load the email from disk
 
         if ( $email_record->{rawEmail} ) {
             my $raw_message = decode_entities( $email_record->{rawEmail} );
@@ -260,15 +266,77 @@ sub run {
                 }
             }
 
-            # 5.5. Yahoo Groups API detaches all attachments, so we go
+            # 6.4. Yahoo Groups API detaches all attachments, so we go
             #      through all the message parts, try to guess which
             #      attachments go where, and manually reattach them
 
-            my $attachments_dir_path = $email_filename->filename;
-            $attachments_dir_path =~ s/_raw\.json$/_attachments/;
-            my $attachments_dir
-                = io( $email_filename->filepath )
-                ->catdir($attachments_dir_path);
+            my %valid_unseen_attachment_by_file_id;
+            {
+                my @attachment_dirs_to_scan;
+
+                # we want files from /email/[number]_attachments
+                my $attachments_dir_path = $email_filename->filename;
+                $attachments_dir_path =~ s/_raw\.json$/_attachments/;
+                my $main_email_attachments_dir
+                    = io( $email_filename->filepath )
+                    ->catdir($attachments_dir_path);
+                if ( $main_email_attachments_dir->exists ) {
+                    push @attachment_dirs_to_scan,
+                        $main_email_attachments_dir;
+                }
+
+                # we want files from /attachments/[attachment id]/
+                foreach my $attachment_record (
+                              values %unseen_attachment_file_id_to_details ) {
+                    if ( $attachment_record->{attachmentId} ) {
+                        my $attachment_id
+                            = $attachment_record->{attachmentId};
+                        my $attachment_id_dir
+                            = $global_attachments_dir->catdir($attachment_id);
+                        if ( $attachment_id_dir->exists ) {
+                            push @attachment_dirs_to_scan, $attachment_id_dir;
+                        }
+                    }
+                }
+
+                foreach my $attachments_dir_to_scan (@attachment_dirs_to_scan)
+                {
+                    foreach my $attachment_on_disk (
+                                             $attachments_dir_to_scan->all ) {
+                        my $filename = $attachment_on_disk->filename;
+                        if ( $filename =~ m/^(\d+)-/ ) {
+                            my $file_id = $1;
+                            next
+                                if
+                                $valid_unseen_attachment_by_file_id{$file_id};
+                            if ( $unseen_attachment_file_id_to_details{
+                                     $file_id} ) {
+                                my $filename;
+                                if ( $unseen_attachment_file_id_to_details{
+                                         $file_id}->{filename} ) {
+                                    $filename
+                                        = $unseen_attachment_file_id_to_details{
+                                        $file_id}->{filename};
+                                } else {
+                                    $filename = $attachment_on_disk->filename;
+                                    $filename =~ s/^\d+-//;
+                                }
+                                if ($filename) {
+                                    $valid_unseen_attachment_by_file_id{
+                                        $file_id}->{filename} = $filename;
+                                    $valid_unseen_attachment_by_file_id{
+                                        $file_id}->{details}
+                                        = $unseen_attachment_file_id_to_details{
+                                        $file_id};
+                                    $valid_unseen_attachment_by_file_id{
+                                        $file_id}->{file}
+                                        = $attachment_on_disk;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             {
                 local $SIG{__WARN__} = sub { };
@@ -294,31 +362,28 @@ sub run {
 
                             my $filename = eval {
                                 local $SIG{__WARN__} = sub { };
-                                $part->filename;
+                                return $part->filename;
                             };
 
-                            if ( defined $filename and length $filename ) {
-                                if (     $attachments_dir->exists
-                                     and $attachments_dir->is_readable ) {
-                                    my $attachment_file_on_disk
-                                        = find_the_most_likely_attachment_in_directory(
-                                                           $filename,
-                                                           $attachments_dir );
-                                    if ($attachment_file_on_disk) {
-                                        my $attachment_contents
-                                            = $attachment_file_on_disk
-                                            ->binary->all;
+                            if (     defined $filename
+                                 and length $filename
+                                 and %valid_unseen_attachment_by_file_id ) {
+                                my $file_id_to_attach
+                                    = find_the_most_likely_attachment_in_directory(
+                                       $filename,
+                                       \%valid_unseen_attachment_by_file_id );
+                                if ($file_id_to_attach) {
+                                    my $file_to_attach
+                                        = $valid_unseen_attachment_by_file_id{
+                                        $file_id_to_attach}->{file};
 
-                                        $part->body_set($attachment_contents);
-                                        $attached_the_attachment = 1;
-                                        if ( $attachment_file_on_disk
-                                             ->filename =~ m/^(\d+)-./ ) {
-                                            my $attachment_id = $1;
-                                            delete
-                                                $unseen_attachment_id_to_details{
-                                                $attachment_id};
-                                        }
-                                    }
+                                    my $attachment_contents
+                                        = $file_to_attach->binary->all;
+                                    $part->body_set($attachment_contents);
+                                    $attached_the_attachment = 1;
+                                    delete
+                                        $valid_unseen_attachment_by_file_id{
+                                        $file_id_to_attach};
                                 }
                             }
 
@@ -330,23 +395,21 @@ sub run {
 
                             unless ($attached_the_attachment) {
 
-                                $log->warning(
-                                    "[$list_name] message $email_message_id: an attachment could not be found, skipping"
-                                );
-
-                                my $filename = eval {
-                                    local $SIG{__WARN__} = sub { };
-                                    return $part->filename;
-                                };
-
-                                my $error_message;
+                                my $attachment_description = 'attachment';
                                 if ($filename) {
-                                    $error_message
-                                        = qq{The original email contained an attachment named "$filename" but we could not retrieve it via the Yahoo Groups API.};
-                                } else {
-                                    $error_message
-                                        = qq{The original email contained an attachment of type "$content_type" but we could not retrieve it via the Yahoo Groups API.};
+                                    $attachment_description
+                                        = qq{attachment named '$filename'};
+                                } elsif ($content_type) {
+                                    $attachment_description
+                                        = qq{attachment of type "$content_type"};
                                 }
+
+                                $log->warning(
+                                    "[$list_name] message $email_message_id: $attachment_description could not be found, skipping"
+                                );
+                                my $error_message
+                                    = qq{The original email contained an $attachment_description but we could not retrieve it via the Yahoo Groups API.};
+
                                 $part->header_str_set(
                                       'X-Original-Content-Type' =>
                                           $part->header_str('Content-Type') );
@@ -378,7 +441,7 @@ sub run {
                                  =~ s/\n\(Message over 64 KB, truncated\)$// )
                             {
                                 $log->warning(
-                                    "[$list_name] message $email_message_id: textual content was truncated at 64 KB, trying to repair"
+                                    "[$list_name] message $email_message_id: textual content was badly truncated at 64 KB, trying to repair"
                                 );
                                 $part->header_str_set(
                                            'X-Yahoo-Groups-Content-Truncated',
@@ -408,7 +471,7 @@ sub run {
                 );
             }
 
-            # 5.6. In some cases, there can be attachments that were
+            # 6.5. In some cases, there can be attachments that were
             #      not re-attached because we didn't find a reference
             #      to them in one of the message parts. In those
             #      cases, we go through the list of un-reattached
@@ -416,40 +479,31 @@ sub run {
             #      final parts.
 
             foreach my $remaining_attachment (
-                                   values %unseen_attachment_id_to_details ) {
-                if ( defined $remaining_attachment->{filename} ) {
-                    my $attachment_file_on_disk
-                        = find_the_most_likely_attachment_in_directory(
-                                            $remaining_attachment->{filename},
-                                            $attachments_dir );
-                    if ($attachment_file_on_disk) {
-                        my $new_attachment_part
-                            = Email::MIME->create(
-                            attributes => {
-                                filename => $remaining_attachment->{filename},
-                                disposition => "attachment",
-                                content_type =>
-                                    $remaining_attachment->{fileType},
-                            },
-                            body => $attachment_file_on_disk->binary->all,
-                            );
+                                values %valid_unseen_attachment_by_file_id ) {
+                my $new_attachment_part
+                    = Email::MIME->create(
+                         attributes => {
+                             filename    => $remaining_attachment->{filename},
+                             disposition => 'attachment',
+                             content_type =>
+                                 $remaining_attachment->{details}->{fileType},
+                         },
+                         body => $remaining_attachment->{file}->binary->all,
+                    );
 
-                        if ($new_attachment_part) {
+                if ($new_attachment_part) {
 
-                            # We ignore warnings because every once in
-                            # a while, we'll see encoding errors that
-                            # could have been fixed with RFC2047
-                            # encoding, but Email::MIME doesn't
-                            # support it yet. We could use
-                            # Email::MIME::RFC2047, but that doesn't
-                            # solve the problem entirely just yet.
-                            eval {
-                                local $SIG{__WARN__} = sub { };
-                                return $email->parts_add(
-                                                     [$new_attachment_part] );
-                            };
-                        }
-                    }
+                    # We ignore warnings because every once in
+                    # a while, we'll see encoding errors that
+                    # could have been fixed with RFC2047
+                    # encoding, but Email::MIME doesn't
+                    # support it yet. We could use
+                    # Email::MIME::RFC2047, but that doesn't
+                    # solve the problem entirely just yet.
+                    eval {
+                        local $SIG{__WARN__} = sub { };
+                        return $email->parts_add( [$new_attachment_part] );
+                    };
                 }
             }
 
@@ -479,7 +533,7 @@ sub run {
                   scalar(@generated_email_files),
                   "email files in $destination_dir/email" );
 
-    # 6. Write mbox file, consisting of all the RFC822 emails we wrote
+    # 7. Write mbox file, consisting of all the RFC822 emails we wrote
     #    to disk. Do this by re-reading the emails from disk, one at a
     #    time, to lower memory usage for large lists.
 
@@ -578,7 +632,7 @@ sub run {
 }
 
 sub find_the_most_likely_attachment_in_directory {
-    my ( $wanted_filename, $attachments_dir ) = @_;
+    my ( $wanted_filename, $unseen_present_attachment_files_by_file_id ) = @_;
 
     return unless defined $wanted_filename;
     return unless length $wanted_filename;
@@ -587,26 +641,28 @@ sub find_the_most_likely_attachment_in_directory {
     $normalized_wanted_filename =~ s/\s+/-/g;
 
     my %name_to_file;
-    foreach my $attachment_on_disk ( $attachments_dir->all ) {
-        my $filename = $attachment_on_disk->filename;
-        $filename =~ s/^\d+-//;
-        $name_to_file{$filename}->{file} = $attachment_on_disk;
+    foreach
+        my $file_id ( keys %{$unseen_present_attachment_files_by_file_id} ) {
+        my $filename = $unseen_present_attachment_files_by_file_id->{$file_id}
+            ->{filename};
+        $name_to_file{$filename}->{file_id} = $file_id;
     }
 
-    foreach my $potential_attachment_on_disk_filename ( keys %name_to_file ) {
+    foreach my $filename ( keys %name_to_file ) {
         my $distance =
             Text::Levenshtein::XS::distance( $normalized_wanted_filename,
-                                     $potential_attachment_on_disk_filename );
-        $name_to_file{$potential_attachment_on_disk_filename}->{distance}
+                                             $filename );
+        $name_to_file{$filename}->{distance}
             = $distance / length($normalized_wanted_filename);
     }
 
-    my @attachments_by_distance
-        = sort { $a->{distance} <=> $b->{distance} } values %name_to_file;
+    my @attachments_by_distance = sort {
+        $name_to_file{$a}->{distance} <=> $name_to_file{$b}->{distance}
+    } values %name_to_file;
 
     if (     @attachments_by_distance
          and $attachments_by_distance[0]->{distance} <= 0.8 ) {
-        return $attachments_by_distance[0]->{file};
+        return $attachments_by_distance[0]->{file_id};
     }
 
     return;

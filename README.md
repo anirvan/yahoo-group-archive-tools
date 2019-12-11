@@ -100,8 +100,8 @@ We remove invalid linefeeds and 8-bit characters from 7-bit RFC822 text.
 
 ## 4. Bugs and todo
 
-* Add a workflow to convert emails and mailboxes to PDF using [email2pdf](https://github.com/andrewferrier/email2pdf)
-* Closest file matches are currently checked against files on disk, rather than against those in the attachments info array. This means we might accidentally pick the wrong attachment in cases where the correct attachment hadn't been downloaded to disk.
+* Capture email2pdf PDF conversion errors, instead of discarding them
+* Catch and solve some of the most common email2pdf errors
 * Maybe fix redacted headers in sub-parts so the message is valid
 * Need to verify that attached files round trip correctly
 
