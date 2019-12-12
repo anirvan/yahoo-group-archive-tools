@@ -1,6 +1,6 @@
 # Yahoo Groups Archive Tools
 
-Once you've backed up a Yahoo Group using [yahoo-group-archiver](https://github.com/IgnoredAmbience/yahoo-group-archiver), this script turns that into ordinary RFC822 email and mbox files that can be archived and processed by other tools. This works on \*nix and Mac, but hasn't been tested on Windows.
+Once you've backed up a Yahoo Group using [yahoo-group-archiver](https://github.com/IgnoredAmbience/yahoo-group-archiver), this script turns that into clean RFC822 email, mbox, and PDF files that can be archived and processed by other tools. This works on \*nix and Mac, but hasn't been tested on Windows.
 
 ## 1. Installation and usage
 
