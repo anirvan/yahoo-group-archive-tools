@@ -50,7 +50,7 @@ The output directory will contain:
 
 ## 3. Learn more
 
-* This tool builds on output from [IgnoredAmbiance's Yahoo Group Archiver](https://github.com/IgnoredAmbience/yahoo-group-archiver)
+* This tool builds on output from [IgnoredAmbiance's Yahoo Group Archiver](https://github.com/IgnoredAmbience/yahoo-group-archiver), and has also been tested with the [ArchiveTeam fork](https://github.com/ArchiveTeam/yahoo-group-archiver/)
 * Read more about the Yahoo Groups archiving process, the tools people are using, and the community of people doing the work at [ArchiveTeam Yahoo Groups project](https://www.archiveteam.org/index.php?title=Yahoo!_Groups)
 
 ## 4. Yahoo Groups API issues, and how we work around them
