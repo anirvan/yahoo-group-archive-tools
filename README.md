@@ -43,8 +43,8 @@ yahoo-group-archive-tools.pl --source <archived-input-dir> --destination <output
 
 The output directory will contain:
 
-* An `email` folder containing standalone email files for every email in the archive, e.g. `email/1.eml`, `email/2.eml`. The emails won't be pristine, because Yahoo redacts email addresses (see that and other caveats below). The email IDs reflect those downloaded by yahoo-group-archiver, and it's normal to see some gaps in keeping with the original numering.
-* A consolidated mailbox file, `mbox/list.mbox`, for the entire history of the list.
+* An `email` folder containing standalone email files for every email in the archive, e.g. `email/1.eml`, `email/2.eml`. The emails won't be pristine, because Yahoo redacts email addresses (see that and other caveats below). The email IDs reflect those downloaded by yahoo-group-archiver, and it's normal to see some gaps in keeping with the original nubmering.
+* A consolidated mailbox file, `mbox/list.mbox`, for the entire history of the list
 * With PDF support enabled, a `pdf-individual` directory containing individual PDFs for every email
 * With PDF support enabled, a `pdf-combined` directory with a single PDF file containg every email
 
