@@ -129,13 +129,21 @@ sub run {
     die "Can't access source directory $source_path\n"
         unless $source_dir->exists and $source_dir->is_readable;
 
+    # /email/
     my $email_dir = $source_dir->catdir('email');
     die "Can't access subfolder", $email_dir->name, " sub-folder\n"
         unless $email_dir->exists and $email_dir->is_readable;
 
+    # /attachments/
     my $global_attachments_dir = $source_dir->catdir('attachments');
     unless ( $global_attachments_dir->exists ) {
         undef $global_attachments_dir;
+    }
+
+    # /topics/
+    my $topics_dir = $source_dir->catdir('topics');
+    unless ( $topics_dir->exists ) {
+        undef $topics_dir;
     }
 
     # 2. Validate emails dir
@@ -275,26 +283,46 @@ sub run {
                 my @attachment_dirs_to_scan;
 
                 # we want files from /email/[number]_attachments
-                my $attachments_dir_path = $email_filename->filename;
-                $attachments_dir_path =~ s/_raw\.json$/_attachments/;
-                my $main_email_attachments_dir
-                    = io( $email_filename->filepath )
-                    ->catdir($attachments_dir_path);
-                if ( $main_email_attachments_dir->exists ) {
-                    push @attachment_dirs_to_scan,
-                        $main_email_attachments_dir;
+                {
+                    my $attachments_dir_path = $email_filename->filename;
+                    $attachments_dir_path =~ s/_raw\.json$/_attachments/;
+                    my $main_email_attachments_dir
+                        = io( $email_filename->filepath )
+                        ->catdir($attachments_dir_path);
+                    if ( $main_email_attachments_dir->exists ) {
+                        push @attachment_dirs_to_scan,
+                            $main_email_attachments_dir;
+                    }
+                }
+
+                # we want files from /topics/[number]_attachments
+                if ($topics_dir) {
+                    my $topics_attachments_dir_path
+                        = $email_filename->filename;
+                    $topics_attachments_dir_path
+                        =~ s/_raw\.json$/_attachments/;
+                    my $topics_email_attachments_dir
+                        = $topics_dir->catdir($topics_attachments_dir_path);
+                    if ( $topics_email_attachments_dir->exists ) {
+                        push @attachment_dirs_to_scan,
+                            $topics_email_attachments_dir;
+                    }
                 }
 
                 # we want files from /attachments/[attachment id]/
-                foreach my $attachment_record (
+                if ($global_attachments_dir) {
+                    foreach my $attachment_record (
                               values %unseen_attachment_file_id_to_details ) {
-                    if ( $attachment_record->{attachmentId} ) {
-                        my $attachment_id
-                            = $attachment_record->{attachmentId};
-                        my $attachment_id_dir
-                            = $global_attachments_dir->catdir($attachment_id);
-                        if ( $attachment_id_dir->exists ) {
-                            push @attachment_dirs_to_scan, $attachment_id_dir;
+                        if ( $attachment_record->{attachmentId} ) {
+                            my $attachment_id
+                                = $attachment_record->{attachmentId};
+                            my $attachment_id_dir
+                                = $global_attachments_dir->catdir(
+                                                              $attachment_id);
+                            if ( $attachment_id_dir->exists ) {
+                                push @attachment_dirs_to_scan,
+                                    $attachment_id_dir;
+                            }
                         }
                     }
                 }
@@ -321,6 +349,7 @@ sub run {
                                     $filename = $attachment_on_disk->filename;
                                     $filename =~ s/^\d+-//;
                                 }
+
                                 if ($filename) {
                                     $valid_unseen_attachment_by_file_id{
                                         $file_id}->{filename} = $filename;
