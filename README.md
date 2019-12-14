@@ -1,6 +1,10 @@
 # Yahoo Groups Archive Tools
 
-Once you've backed up a Yahoo Group using [yahoo-group-archiver](https://github.com/IgnoredAmbience/yahoo-group-archiver), this script turns that into clean RFC822 email, mbox, and PDF files that can be archived and processed by other tools. This works on \*nix and Mac, but hasn't been tested on Windows.
+Many of us are using [yahoo-group-archiver](https://github.com/IgnoredAmbience/yahoo-group-archiver) to back up Yahoo Groups API results. This script takes the output of that tool, and converts it into [individual email files](https://en.wikipedia.org/wiki/Email#Message_format), [mbox mail folders](https://en.wikipedia.org/wiki/Mbox), and optionally, PDF files.
+
+Mail folders stored as mbox can be imported by a wide range of desktop and server-side email clients, including [Thunderbird](https://addons.thunderbird.net/en-US/thunderbird/addon/importexporttools-ng/) (Linux, Mac, Windows), [Apple Mail.app](https://support.apple.com/guide/mail/import-or-export-mailboxes-mlhlp1030/mac) (Mac), [Microsoft Outlook](https://duckduckgo.com/?q=outlook+mbox+import&ia=web) (Windows and Mac).
+
+Many non-technical users won't know what to do with an mbox file, but will really appreciate getting a PDF file containing all the emails in the list. You can enable experimental PDF support by installing Andrew Ferrier's [email2pdf](https://github.com/andrewferrier/email2pdf) script. This process is known to be buggy, and your bug reports would be appreciated.
 
 ## 1. Installation and usage
 
@@ -28,7 +32,7 @@ yahoo-group-archive-tools.pl --source <archived-input-dir> --destination <output
 
 ### Experimental PDF support
 
-Many non-technical users won't know what to do with an mbox file, but will appreciate getting a PDF file containing all the emails in the list. You can enable experimental PDF support by installing Andrew Ferrier's [email2pdf](https://github.com/andrewferrier/email2pdf) script. This process is known to be buggy, and bug reports would be appreciated.
+Start by installing Andrew Ferrier's [email2pdf](https://github.com/andrewferrier/email2pdf) script. It can be a little complicated to install, but giving someone a PDF file of their list can elicit delight. This is experimental, so bug reports are appreciated.
 
 ```
 mkdir output-dir
