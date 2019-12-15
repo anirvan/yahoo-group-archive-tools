@@ -289,7 +289,7 @@ sub run {
             # depending on how yahoo-groups-archiver was run:
             # - /email/[email message id]_attachments/[file id]-filename
             # - /attachments/[attachment id]/[file id]-filename
-            # - /topics/[email message id]/[file id]-filename
+            # - /topics/[email message id]_attachments/[file id]-filename
             #
             # We should assume that every valid attachment is
             # described in one of the attachment description blocks,
@@ -299,46 +299,30 @@ sub run {
             {
                 my @attachment_dirs_to_scan;
 
-                # we want files from /email/[number]_attachments
-                {
-                    my $attachments_dir_path = $email_filename->filename;
-                    $attachments_dir_path =~ s/_raw\.json$/_attachments/;
-                    my $main_email_attachments_dir
-                        = io( $email_filename->filepath )
-                        ->catdir($attachments_dir_path);
-                    if ( $main_email_attachments_dir->exists ) {
-                        push @attachment_dirs_to_scan,
-                            $main_email_attachments_dir;
-                    }
+                # /email/[email message id]_attachments
+                if ($email_dir) {
+                    push @attachment_dirs_to_scan,
+                        $email_dir->catdir("${email_message_id}_attachments");
                 }
 
-                # we want files from /topics/[number]_attachments
+                # /topics/[email message id]_attachments
                 if ($topics_dir) {
-                    my $topics_attachments_dir_path
-                        = $email_filename->filename;
-                    $topics_attachments_dir_path
-                        =~ s/_raw\.json$/_attachments/;
-                    my $topics_email_attachments_dir
-                        = $topics_dir->catdir($topics_attachments_dir_path);
-                    if ( $topics_email_attachments_dir->exists ) {
-                        push @attachment_dirs_to_scan,
-                            $topics_email_attachments_dir;
-                    }
+                    push @attachment_dirs_to_scan,
+                        $topics_dir->catdir(
+                                         $email_message_id . '_attachments' );
                 }
 
-                # we want files from /attachments/[attachment id]/
+                # /attachments/[attachment id]/
                 if ($global_attachments_dir) {
                     foreach my $attachment_record (
                               values %unseen_attachment_file_id_to_details ) {
                         if ( $attachment_record->{attachmentId} ) {
                             my $attachment_id
                                 = $attachment_record->{attachmentId};
-                            my $attachment_id_dir
-                                = $global_attachments_dir->catdir(
-                                                              $attachment_id);
-                            if ( $attachment_id_dir->exists ) {
+                            if ( $attachment_id =~ m/^\d+$/ ) {
                                 push @attachment_dirs_to_scan,
-                                    $attachment_id_dir;
+                                    $global_attachments_dir->catdir(
+                                                              $attachment_id);
                             }
                         }
                     }
@@ -346,14 +330,24 @@ sub run {
 
                 foreach my $attachments_dir_to_scan (@attachment_dirs_to_scan)
                 {
+                    next unless $attachments_dir_to_scan->exists;
                     foreach my $attachment_on_disk (
                                              $attachments_dir_to_scan->all ) {
                         my $filename = $attachment_on_disk->filename;
                         if ( $filename =~ m/^(\d+)-/ ) {
                             my $file_id = $1;
+
+                            # If we already have a file on disk for
+                            # this attachment file ID, we don't need a
+                            # second one. For example, if we know file
+                            # ID 1234 can be mapped to the filename
+                            # /email/1_attachments/1234-filename.doc
+                            # then we don't also need to map it to
+                            # /topics/1_attachments/1234-filename.doc
                             next
                                 if
                                 $valid_unseen_attachment_by_file_id{$file_id};
+
                             if ( $unseen_attachment_file_id_to_details{
                                      $file_id} ) {
                                 my $filename;
