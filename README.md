@@ -11,7 +11,7 @@ Many non-technical users won't know what to do with an mbox file, but will reall
 ### Requirements
 
 * Perl 5.14 or higher
-* several Perl modules [installed via CPAN](https://foswiki.org/Support.HowToInstallCpanModules):
+* several Perl modules [installed via CPAN](https://www.cpan.org/modules/INSTALL.html):
   - CAM::PDF
   - Email::MIME
   - Email::Sender
