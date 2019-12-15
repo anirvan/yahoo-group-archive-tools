@@ -201,6 +201,13 @@ sub run {
 
         # 6.2. Grab info on each attachment from [number].json files
 
+	# Attachment descriptions (e.g. filename) can live in 3 places:
+	# - /email/[email message id].json
+	# - /attachments/[attachment id]/attachmentinfo.json
+	# - /topics/[email message id].json
+	# 
+	# For now, we try to load it from /email/[email message id].json
+
         my %unseen_attachment_file_id_to_details;
         {
             my $email_meta_json_path = $email_filename->filename;
@@ -278,6 +285,18 @@ sub run {
             #      through all the message parts, try to guess which
             #      attachments go where, and manually reattach them
 
+	    # Explanation:
+	    #
+	    # Attachments files can live in 3 places on disk,
+	    # depending on how yahoo-groups-archiver was run:
+	    # - /email/[email message id]_attachments/[file id]-filename
+	    # - /attachments/[attachment id]/[file id]-filename
+	    # - /topics/[email message id]/[file id]-filename
+	    #
+	    # We should assume that every valid attachment is
+	    # described in one of the attachment description blocks,
+	    # but that not every attachment exists on disk.
+	    
             my %valid_unseen_attachment_by_file_id;
             {
                 my @attachment_dirs_to_scan;
