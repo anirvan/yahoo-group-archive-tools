@@ -228,6 +228,60 @@ sub run {
                         }
                     }
                 }
+
+            } elsif ($topics_dir) {
+
+                # A given email message ID (e.g. 500) could either be
+                # the start of a topic (e.g. a topic starting with
+                # 500), or an extension of a previous topic (e.g. a
+                # topic starting with 462). We don't know which it'll
+                # be, so we're doing something a little inefficient
+                # here: we look through up to 100 previous topic
+                # files, trying to see if this given message ID is
+                # part of it. When we do, then we look for the
+                # associated attachment record. We do no caching,
+                # which could be inefficient, but premature
+                # optimization is a bad idea.
+
+                my $start_topic_id = $email_message_id;
+                my $num_tries      = 0;
+            EachTopicID:
+                for ( my $topic_id = $email_message_id;
+                      $topic_id > 0;
+                      $topic_id-- ) {
+                    last EachTopicID if $num_tries > 100;
+                    my $topic_json_file
+                        = $topics_dir->catfile("$topic_id.json");
+                    if ( $topic_json_file->exists ) {
+                        $num_tries++;
+                        my $topic_details
+                            = eval { decode_json( $topic_json_file->all ) };
+                        if ( $topic_details and $topic_details->{messages} ) {
+                            foreach my $message_record (
+                                           @{ $topic_details->{messages} } ) {
+                                next unless $message_record;
+                                next
+                                    unless $message_record->{msgId}
+                                    and $message_record->{msgId}
+                                    == $email_message_id;
+                                if ( $message_record->{attachmentsInfo} ) {
+                                    foreach my $attachment_record (
+                                        @{  $message_record->{attachmentsInfo}
+                                        }
+                                        ) {
+                                        if ( $attachment_record->{fileId} ) {
+                                            $unseen_attachment_file_id_to_details{
+                                                $attachment_record->{fileId}
+                                            } = $attachment_record;
+                                        }
+                                    }
+                                }
+
+                                last EachTopicID;
+                            }
+                        }
+                    }
+                }
             }
         }
 
