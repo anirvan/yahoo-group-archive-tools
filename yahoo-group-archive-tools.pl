@@ -547,6 +547,9 @@ sub run {
                         local $SIG{__WARN__} = sub { };
                         return $email->parts_add( [$new_attachment_part] );
                     };
+                    $log->debug(
+                        "[$list_name] message $email_message_id: attached file from '$remaining_attachment->{file}' as a standalone top-level attachment"
+                    );
                 }
             }
 
