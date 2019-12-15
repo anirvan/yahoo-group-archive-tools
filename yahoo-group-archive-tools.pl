@@ -210,15 +210,11 @@ sub run {
 
         my %unseen_attachment_file_id_to_details;
         {
-            my $email_meta_json_path = $email_filename->filename;
-            $email_meta_json_path =~ s/_raw\.json/.json/;
-            my $email_meta_file = io( $email_filename->filepath )
-                ->catfile($email_meta_json_path);
-            if ( $email_meta_file->exists and $email_meta_file->is_readable )
-            {
-                my $email_meta_json = $email_meta_file->all;
+            my $email_meta_json_file
+                = $email_dir->catfile("$email_message_id.json");
+            if ( $email_meta_json_file->exists ) {
                 my $email_meta_record
-                    = eval { decode_json($email_meta_json) } || {};
+                    = eval { decode_json( $email_meta_json_file->all ) };
                 if (     $email_meta_record
                      and $email_meta_record->{attachmentsInfo} ) {
                     foreach my $attachment_record (
