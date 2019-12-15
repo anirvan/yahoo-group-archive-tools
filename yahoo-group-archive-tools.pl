@@ -427,6 +427,26 @@ sub run {
                                     delete
                                         $valid_unseen_attachment_by_file_id{
                                         $file_id_to_attach};
+                                } else {
+                                    my $description_of_remaining_filenames
+                                        = '[none]';
+                                    my @remaining_filenames;
+                                    foreach my $file_record (
+                                         values
+                                         %valid_unseen_attachment_by_file_id )
+                                    {
+                                        push @remaining_filenames,
+                                            $file_record->{filename};
+                                    }
+                                    if (@remaining_filenames) {
+                                        $description_of_remaining_filenames
+                                            = join( ', ',
+                                                   map {"'$_'"}
+                                                       @remaining_filenames );
+                                    }
+                                    $log->debug(
+                                        "[$list_name] message $email_message_id: we could not map the filename in the email header '$filename' to any of the as-yet unattached attachments listed in the attachments list: $description_of_remaining_filenames"
+                                    );
                                 }
                             }
 
@@ -691,19 +711,26 @@ sub find_the_most_likely_attachment_based_on_filename {
         my $file_id ( keys %{$unseen_present_attachment_files_by_file_id} ) {
         my $filename = $unseen_present_attachment_files_by_file_id->{$file_id}
             ->{filename};
+        $filename =~ s/&#39;/'/g;   # only URI escape seen, being conservative
         $name_to_file{$filename}->{file_id} = $file_id;
     }
 
     foreach my $filename ( keys %name_to_file ) {
-        my $distance =
-            Text::Levenshtein::XS::distance( $normalized_wanted_filename,
-                                             $filename );
-        $name_to_file{$filename}->{distance}
-            = $distance / length($normalized_wanted_filename);
+        if ( $wanted_filename eq $filename ) {
+            $name_to_file{$filename}->{distance} = 0;
+        } elsif ( $normalized_wanted_filename eq $filename ) {
+            $name_to_file{$filename}->{distance} = 0.01;
+        } else {
+            $name_to_file{$filename}->{distance}
+                = Text::Levenshtein::XS::distance($normalized_wanted_filename,
+                                                  $filename ) /
+                length($filename);
+        }
     }
 
     my @attachments_by_distance = sort {
-        $name_to_file{$a}->{distance} <=> $name_to_file{$b}->{distance}
+        ( $name_to_file{$a}->{distance} // 1 )
+            <=> ( $name_to_file{$b}->{distance} // 1 )
     } values %name_to_file;
 
     if (     @attachments_by_distance
