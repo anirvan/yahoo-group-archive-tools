@@ -409,7 +409,7 @@ sub run {
                                  and length $filename
                                  and %valid_unseen_attachment_by_file_id ) {
                                 my $file_id_to_attach
-                                    = find_the_most_likely_attachment_in_directory(
+                                    = find_the_most_likely_attachment_based_on_filename(
                                        $filename,
                                        \%valid_unseen_attachment_by_file_id );
                                 if ($file_id_to_attach) {
@@ -674,7 +674,7 @@ sub run {
     return;
 }
 
-sub find_the_most_likely_attachment_in_directory {
+sub find_the_most_likely_attachment_based_on_filename {
     my ( $wanted_filename, $unseen_present_attachment_files_by_file_id ) = @_;
 
     return unless defined $wanted_filename;
