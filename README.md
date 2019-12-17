@@ -119,6 +119,8 @@ This tool directly executes the `email2pdf` script specified by the `--email2pdf
 * Maybe fix redacted headers in sub-parts so the message is valid
 * Need to verify that attached files round trip correctly
 
-## 7. Feedback
+## 7. Feedback and authorship
 
-Feel free to use GitHub's issue tracker. If you need to contact me privately, DM me [@anirvan](https://twitter.com/anirvan) on Twitter.
+This software is copyright [Anirvan Chatterjee](https://www.chatterjee.net/), and licensed under the [MIT License](https://tldrlegal.com/license/mit-license).
+
+Have questions, bug reports, or suggestions? Feel free to use GitHub's issue tracker. If you need to contact me privately, DM me [@anirvan](https://twitter.com/anirvan) on Twitter.
