@@ -76,7 +76,7 @@ Because the API tells us the submitting Yahoo user's username, we can make a fak
     * Yahoo Groups _also_ saves that as `ceo@...` even though this is a totally different person
     * But we turn that email it into `ceo@toyotalover123.yahoo.invalid`, which is different from `ceo@fordfan.yahoo.invalid`
 
-We make this change in several headers that are guaranteed to include the original sender's email as part of it, including `From` and `Message-Id`. We save the original redacted version as an [X- header](https://tools.ietf.org/html/rfc822#section-4.7.4). For example, if Yahoo says an email is `From: ceo@...`, we modify that to `From: ceo@ceo123.yahoo.invalid`, and save the original as `X-Original-Yahoo-Groups-Redacted-From:` `ceo@...`.
+We make this change in several headers that include the original sender's email, including `From` and `Message-Id`. We save the original redacted version as an [X- header](https://tools.ietf.org/html/rfc822#section-4.7.4). For example, if Yahoo says an email is `From: ceo@...`, we modify that to `From: ceo@ceo123.yahoo.invalid`, and save the original as `X-Original-Yahoo-Groups-Redacted-From:` `ceo@...`. If we don't have a Yahoo profile name (e.g. "ceo123"), we use the numeric Yahoo user ID (e.g. "123456789") instead.
 
 ### 4.2. Attachments
 

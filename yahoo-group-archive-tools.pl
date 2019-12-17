@@ -282,26 +282,29 @@ sub run {
             # 5.4. Fix redacted email headers! Many of the headers
             #      have the email domain names redacted, e.g. a 'From'
             #      header set to "Fred Jones <fred.jones@...>". We
-            #      happen to know the user's Yahoo username (e.g.
-            #      "fjones123"), so we make a globally unique addr
-            #      that doesn't lose what's before the @, and put that
-            #      in place to replace the redaction ellipses. We also
-            #      add X-Original-Yahoo-Groups-Redacted-* headers to
-            #      store the original redacted versions. This process
-            #      will likely interfere with verifying DKIM signing!
+            #      happen to know either the user's Yahoo profile
+            #      (e.g. "fjones123") or user ID (e.g. "123456789"),
+            #      so we make a globally unique addr that doesn't lose
+            #      what's before the @, and put that in place to
+            #      replace the redaction ellipses. We also add
+            #      X-Original-Yahoo-Groups-Redacted-* headers to store
+            #      the original redacted versions. This process will
+            #      likely interfere with verifying DKIM signing!
 
             foreach my $header_name ( 'From', 'X-Sender', 'Return-Path' ) {
-                my $yahoo_id = $email_record->{profile};
-                if ($yahoo_id) {
+                my $yahoo_identifier
+                    = $email_record->{profile} || $email_record->{userId};
+                if ($yahoo_identifier) {
                     my $header_text = eval {
                         local $SIG{__WARN__} = sub { };    # ignore warnings
                         $email->header($header_name);
                     } // '';
                     my $fixed_header_text = $header_text;
                     if ( $fixed_header_text
-                        =~ s{@\.\.\.>}{\@$yahoo_id.yahoo.invalid>}g
+                        =~ s{@\.\.\.>}{\@$yahoo_identifier.yahoo.invalid>}g
                         or $fixed_header_text
-                        =~ s{^([^<]+@)\.\.\.$}{$1$yahoo_id.yahoo.invalid}g ) {
+                        =~ s{^([^<]+@)\.\.\.$}{$1$yahoo_identifier.yahoo.invalid}g
+                        ) {
                         $email->header_set(
                               "X-Original-Yahoo-Groups-Redacted-$header_name",
                               $header_text );
