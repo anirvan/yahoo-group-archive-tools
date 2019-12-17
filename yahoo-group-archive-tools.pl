@@ -178,8 +178,8 @@ sub run {
     # 5. Generate uniform names which will be used for files
 
     my $list_file_name_prefix = 'list';
-    if (    !$uniform_names
-	    and defined $list_name
+    if (     !$uniform_names
+         and defined $list_name
          and $list_name !~ m/\s/
          and length($list_name) <= 128 ) {
         $list_file_name_prefix = $list_name;
