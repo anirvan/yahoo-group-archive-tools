@@ -123,7 +123,7 @@ END
 
 sub run {
 
-    # 1. Validate source dir
+    # 1. Validate source directories
 
     my $source_dir = io($source_path)->dir;
     die "Can't access source directory $source_path\n"
@@ -146,7 +146,7 @@ sub run {
         undef $topics_dir;
     }
 
-    # 2. Validate emails dir
+    # 2. Try to look for emails
 
     my @email_filenames = $email_dir->glob('*_raw.json');
     @email_filenames
@@ -162,7 +162,7 @@ sub run {
         unless $destination_dir->exists
         and $destination_dir->is_readable;
 
-    # 4. Validate list about data
+    # 4. Get list name
 
     my $list_name;
     {
@@ -179,6 +179,7 @@ sub run {
 
     my $list_file_name_prefix = 'list';
     if (    !$uniform_names
+	    and defined $list_name
          and $list_name !~ m/\s/
          and length($list_name) <= 128 ) {
         $list_file_name_prefix = $list_name;
@@ -287,7 +288,7 @@ sub run {
             #      in place to replace the redaction ellipses. We also
             #      add X-Original-Yahoo-Groups-Redacted-* headers to
             #      store the original redacted versions. This process
-            #      may interfere with verifying DKIM signing!
+            #      will likely interfere with verifying DKIM signing!
 
             foreach my $header_name ( 'From', 'X-Sender', 'Return-Path' ) {
                 my $yahoo_id = $email_record->{profile};
