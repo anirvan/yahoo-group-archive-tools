@@ -207,9 +207,8 @@ sub run {
         # - /attachments/[attachment id]/attachmentinfo.json
         # - /topics/[email message id].json
         #
-        # For now, we try to load it from /email/[email message id].json
-        # It's possible to check /topics/ as well, but I don't know if
-        # it's needed.
+        # For now, we try to load the information from either /email/
+        # or /topics/
 
         my %unseen_attachment_file_id_to_details;
         {
