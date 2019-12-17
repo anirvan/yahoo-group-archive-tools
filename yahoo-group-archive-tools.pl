@@ -673,14 +673,18 @@ sub run {
         my $combined_pdf_dir = $destination_dir->catdir('pdf-complete');
         $combined_pdf_dir->mkdir unless $combined_pdf_dir->exists;
 
-        my @pdf_files;
+        my ( @pdf_files, $email_count );
+        my $email_max = scalar @generated_email_files;
         foreach my $email_file (@generated_email_files) {
+            $email_count++;
             my $pdf_filename = $email_file->filename;
             $pdf_filename =~ s/\.eml/.pdf/;
             my $final_pdf_file = $pdf_dir->catfile($pdf_filename);
             build_pdf( $email_file, $final_pdf_file, $list_name );
             if ( $final_pdf_file->exists ) {
-                $log->notice("[$list_name] created PDF $final_pdf_file");
+                $log->notice(
+                    "[$list_name] created PDF $final_pdf_file ($email_count of $email_max)"
+                );
                 push @pdf_files, $final_pdf_file;
             } else {
                 $log->warning(
