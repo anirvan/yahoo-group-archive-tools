@@ -667,7 +667,11 @@ sub run {
     }
     $log->notice("[$list_name] wrote consolidated mailbox at $mbox_file");
 
+    # 8. Create PDF files
+
     if ($run_pdf) {
+
+        # 8.1 Create individual PDF files
 
         $log->notice(
             qq{[$list_name] Attempting to run experimental email2pdf conversion. If this fails immediately, try running "$email2pdf_path -h" and make sure it returns help text.}
@@ -697,6 +701,8 @@ sub run {
                 );
             }
         }
+
+        # 8.2 Create merged PDF file
 
     EachPdfFileToAppend:
         if (@pdf_files) {
