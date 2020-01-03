@@ -698,7 +698,7 @@ sub run {
             }
         }
 
-    EachPdfFIleToAppend:
+    EachPdfFileToAppend:
         if (@pdf_files) {
 
             $log->notice(
@@ -722,14 +722,14 @@ sub run {
                         $log->warning(
                             "[$list_name] could not append $pdf_file to combined PDF file, so skipping this email. CAM::PDF error is '$CAM::PDF::errstr'"
                         );
-                        next EachPdfFIleToAppend;
+                        next EachPdfFileToAppend;
                         };
                     $combined_pdf_object->appendPDF($this_pdf_object)
                         || do {
                         $log->warning(
                             "[$list_name] could not append $pdf_file to combined PDF file, so skipping this email. CAM::PDF error is '$CAM::PDF::errstr'"
                         );
-                        next EachPdfFIleToAppend;
+                        next EachPdfFileToAppend;
                         };
                 }
             }
