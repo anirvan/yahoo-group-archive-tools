@@ -42,7 +42,7 @@ OPTIONS
                       (generated files will be written in subdirectories)
 
     --uniform-names   output files should have generic and consistent names
-                      (e.g. "list.mbox" intead of "my-friends-group.mbox")
+                      (e.g. "list.mbox" intead of "[actual-group-name].mbox")
                       which can be helpful for mass processing
 
     --pdf             use email2pdf to generate PDF files (experimental!)
