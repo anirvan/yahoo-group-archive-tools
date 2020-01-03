@@ -566,9 +566,11 @@ sub run {
                                                   'Content-Transfer-Encoding',
                                                   'binary' );
                                 $part->body_set($fixed_body_raw);
-                                $part->header_str_set(
+                                if ( defined $original_cte ) {
+                                    $part->header_str_set(
                                                   'Content-Transfer-Encoding',
                                                   $original_cte );
+                                }
                             }
                         }
                     }
