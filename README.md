@@ -13,12 +13,14 @@ Many non-technical users won't know what to do with an mbox file, but will reall
 * Perl 5.14 or higher
 * several Perl modules [installed via CPAN](https://www.cpan.org/modules/INSTALL.html):
   - CAM::PDF
+  - Capture::Tiny
   - Email::MIME
   - Email::Sender
   - HTML::Entities
   - IO::All
   - JSON
   - Log::Dispatch
+  - MCE
   - Sort::Naturally
   - Text::Levenshtein::XS
   - autodie

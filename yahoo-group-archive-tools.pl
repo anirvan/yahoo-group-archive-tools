@@ -1,6 +1,7 @@
 #!perl
 
 use CAM::PDF;
+use Capture::Tiny 'capture';
 use Date::Format 'time2str';
 use Email::MIME;
 use Email::Sender::Transport::Mbox;
@@ -10,6 +11,8 @@ use HTML::Entities 'decode_entities';
 use IO::All 'io';
 use JSON 'decode_json';
 use Log::Dispatch;
+use MCE::Loop;
+use MCE::Util;
 use Sort::Naturally 'ncmp';
 use Text::Levenshtein::XS;
 use autodie;
@@ -684,35 +687,82 @@ sub run {
 
         my ( @pdf_files, $email_count );
         my $email_max = scalar @generated_email_files;
-        foreach my $email_file (@generated_email_files) {
-            $email_count++;
+
+        my $number_of_workers_to_execute;  # twice CPUs, but never more than 8
+        {
+            $number_of_workers_to_execute = MCE::Util::get_ncpu() * 2;
+            if ( $number_of_workers_to_execute > 8 ) {
+                $number_of_workers_to_execute = 8;
+            }
+        }
+        MCE::Loop::init { chunk_size  => 1,
+                          max_workers => $number_of_workers_to_execute
+        };
+
+        my $loop_function = sub {
+            my $email_position = shift;
+            my $email_file     = $generated_email_files[$email_position];
+            my $email_count    = $email_position + 1;
+            my $email_id;
+
             my $pdf_filename = $email_file->filename;
             $pdf_filename =~ s/\.eml/.pdf/;
+            if ( $pdf_filename =~ m/^(\d+)/ ) {
+                $email_id = $1;
+            }
             my $final_pdf_file = $pdf_dir->catfile($pdf_filename);
-            build_pdf( $email_file, $final_pdf_file, $list_name );
-            if ( $final_pdf_file->exists ) {
-                $log->notice(
-                    "[$list_name] created PDF $final_pdf_file ($email_count of $email_max)"
+            $final_pdf_file->unlink if $final_pdf_file->exists;
+            my ( $ok, $warnings_list )
+                = build_pdf( $email_file, $final_pdf_file, $list_name );
+            my @pdf_build_warnings = @{$warnings_list};
+
+            foreach my $warning (@pdf_build_warnings) {
+                $log->debug(
+                    "[$list_name] PDF $email_count: issue while generating PDF $final_pdf_file: '$warning'"
                 );
+            }
+
+            if ( $ok and $final_pdf_file->exists ) {
+                $log->notice(
+                    "[$list_name] PDF $email_id: created PDF $final_pdf_file ($email_count of $email_max)"
+                );
+                MCE->gather( $final_pdf_file->name );
                 push @pdf_files, $final_pdf_file;
             } else {
                 $log->warning(
-                    "[$list_name] could not create PDF $final_pdf_file, skipping for now. Feel free to report the exact error message above as a bug report."
+                    "[$list_name] PDF $email_id: could not create PDF $final_pdf_file ($email_count of $email_max), skipping for now."
                 );
+
+                if ( !$log->would_log('debug') and @pdf_build_warnings ) {
+                    $log->warning(
+                        "[$list_name] PDF $email_id: FYI, the following are some of the errors/warnings encountered during the failed PDF generation. If you see a consistent issue, feel free to report the exact error message above as a bug report."
+                    );
+                    foreach my $warning (@pdf_build_warnings) {
+                        $log->warning(
+                            "[$list_name] PDF $email_id: issue while generating PDF $final_pdf_file: '$warning'"
+                        );
+                    }
+                }
+
             }
-        }
+
+        };
+        my @pdf_file_paths = mce_loop_s { $loop_function->($_) } 0,
+            $#generated_email_files;
 
         # 8.2 Create merged PDF file
 
     EachPdfFileToAppend:
-        if (@pdf_files) {
+        if (@pdf_file_paths) {
 
             $log->notice(
-                qq{[$list_name] Attempting to combine all the PDF files in $pdf_dir into a single PDF file. This might fail if memory is low. Feel free to report this as a bug.}
+                qq{[$list_name] attempting to combine all the PDF files in $pdf_dir into a single PDF file. This might fail if memory is low. Feel free to report this as a bug.}
             );
 
             my $combined_pdf_file
                 = $combined_pdf_dir->catfile("$list_file_name_prefix.pdf");
+
+            my @pdf_files = map { io($_)->file } @pdf_file_paths;
 
             my $first_pdf_file      = shift @pdf_files;
             my $combined_pdf_object = CAM::PDF->new( $first_pdf_file->name )
@@ -804,15 +854,34 @@ sub build_pdf {
 
     my $temp_pdf_file = $pdf_build_dir->catfile('out.pdf');
 
-    system( $email2pdf_path, '--headers', '-i', $email_file->name,
-            '--output-file', $temp_pdf_file->name, '--mostly-hide-warnings' );
-    if ( $temp_pdf_file->exists ) {
+    my ( $ok, @warnings );
+
+    my ( $stdout, $stderr, $exit ) = capture {
+        system( $email2pdf_path, '--headers', '-i', $email_file->name,
+                '--output-file', $temp_pdf_file->name,
+                '--mostly-hide-warnings' );
+    };
+
+    if ( $stderr and $stderr =~ m/\w/ ) {
+        push @warnings, $stderr;
+    }
+
+    if ( $temp_pdf_file->exists and $temp_pdf_file->size > 0 ) {
         $temp_pdf_file->close;
         $final_pdf_file->unlink if $final_pdf_file->exists;
         $temp_pdf_file > $final_pdf_file;
+        $ok = 1;
     }
 
-    return;
+    my $maybe_error_file
+        = $pdf_build_dir->catfile('out_warnings_and_errors.txt');
+    if ( $maybe_error_file->exists ) {
+        @warnings = $maybe_error_file->getlines;
+        @warnings = grep {m/\w/} @warnings;
+        @warnings = map { chomp; s/[\s\r\n]+/ /g; $_ } @warnings;
+    }
+
+    return ( $ok, \@warnings );
 }
 
 sub logger {
