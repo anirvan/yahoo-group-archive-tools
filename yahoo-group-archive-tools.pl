@@ -723,6 +723,53 @@ sub run {
                 last if $ok;
             }
 
+            # Well that didn't work! So as a last ditch effort, we're
+            # going to try to simplify the email by grabbing only the
+            # longest textual content piece.
+            if ( !$ok ) {
+                my $email_raw = eval { io($email_file)->file->binary->all };
+                my $email = eval {
+                    local $SIG{__WARN__} = sub { };    # ignore warnings
+                    Email::MIME->new($email_raw);
+                };
+                if ($email) {
+                    my @textual_subparts;
+                    $email->walk_parts(
+                        sub {
+                            my ($part) = @_;
+                            local $SIG{__WARN__} = undef;    # ignore warnings
+                            return if $part->subparts;
+                            my $content_type = $part->content_type;
+                            if (     $content_type
+                                 and $content_type =~ m{^text/(plain|html)}
+                                 and length( $part->body_str ) ) {
+                                push @textual_subparts, $part;
+                            }
+                        }
+                    );
+
+                    # Pick the longest text subpart, and create a new
+                    # email consisting only of that section.
+                    if (@textual_subparts) {
+                        @textual_subparts = sort {
+                            length( $b->body_str ) cmp length( $a->body_str )
+                        } @textual_subparts;
+                        $email->parts_set( [ $textual_subparts[0] ] );
+                        my $temp_email_fh = File::Temp->new( UNLINK => 1 );
+                        my $temp_simple_email_file
+                            = io( $temp_email_fh->filename );
+                        $temp_simple_email_file->print( $email->as_string );
+                        ( $ok, $warnings_list )
+                            = build_pdf( $temp_simple_email_file,
+                                         $final_pdf_file, $list_name );
+                        $log->debug(
+                            "[$list_name] PDF $email_count: conversion wasn't working, so we're trying to simplify it"
+                        );
+                        $temp_simple_email_file->unlink;
+                    }
+                }
+            }
+
             my @pdf_build_warnings = @{$warnings_list};
 
             foreach my $warning (@pdf_build_warnings) {
