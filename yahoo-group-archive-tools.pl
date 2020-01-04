@@ -696,9 +696,7 @@ sub run {
                 $number_of_workers_to_execute = 16;
             }
         }
-        MCE::Loop::init { chunk_size  => 1,
-                          max_workers => $number_of_workers_to_execute
-        };
+        MCE::Loop::init { max_workers => $number_of_workers_to_execute };
 
         my $loop_function = sub {
             my $email_position = shift;
@@ -755,8 +753,13 @@ sub run {
             }
 
         };
-        my @pdf_file_paths = mce_loop_s { $loop_function->($_) } 0,
-            $#generated_email_files;
+        my @pdf_file_paths = mce_loop_s {
+            my ( $mce, $chunk_ref, $chunk_id ) = @_;
+            for my $item ( @{$chunk_ref} ) {
+                $loop_function->($item);
+            }
+        }
+        0, $#generated_email_files;
 
         # 8.2 Create merged PDF file
 
