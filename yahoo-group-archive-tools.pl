@@ -712,8 +712,15 @@ sub run {
             }
             my $final_pdf_file = $pdf_dir->catfile($pdf_filename);
             $final_pdf_file->unlink if $final_pdf_file->exists;
-            my ( $ok, $warnings_list )
-                = build_pdf( $email_file, $final_pdf_file, $list_name );
+
+            my ( $ok, $warnings_list );
+            for my $attempt ( 1 .. 3 ) {
+                sleep( $attempt - 1 );
+                ( $ok, $warnings_list )
+                    = build_pdf( $email_file, $final_pdf_file, $list_name );
+                last if $ok;
+            }
+
             my @pdf_build_warnings = @{$warnings_list};
 
             foreach my $warning (@pdf_build_warnings) {
