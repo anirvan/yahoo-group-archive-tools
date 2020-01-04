@@ -732,7 +732,7 @@ sub run {
             }
 
             if ( $ok and $final_pdf_file->exists ) {
-                $log->notice(
+                $log->info(
                     "[$list_name] PDF $email_id: created PDF $final_pdf_file ($email_count of $email_max)"
                 );
                 MCE->gather( $final_pdf_file->name );
