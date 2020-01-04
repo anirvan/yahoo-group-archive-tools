@@ -688,11 +688,12 @@ sub run {
         my ( @pdf_files, $email_count );
         my $email_max = scalar @generated_email_files;
 
-        my $number_of_workers_to_execute;  # twice CPUs, but never more than 8
+        # thrice CPUs, but never more than 16
+        my $number_of_workers_to_execute;
         {
-            $number_of_workers_to_execute = MCE::Util::get_ncpu() * 2;
-            if ( $number_of_workers_to_execute > 8 ) {
-                $number_of_workers_to_execute = 8;
+            $number_of_workers_to_execute = MCE::Util::get_ncpu() * 3;
+            if ( $number_of_workers_to_execute > 16 ) {
+                $number_of_workers_to_execute = 16;
             }
         }
         MCE::Loop::init { chunk_size  => 1,
