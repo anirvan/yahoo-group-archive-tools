@@ -16,7 +16,10 @@ use MCE::Util;
 use Sort::Naturally 'ncmp';
 use Text::Levenshtein::XS;
 use autodie;
+binmode STDERR, ':utf8';
+binmode STDOUT, ':utf8';
 use strict;
+use utf8;
 use 5.14.0;
 
 my ( $source_path, $destination_path, $uniform_names, $run_pdf,
