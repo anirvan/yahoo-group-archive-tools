@@ -108,7 +108,7 @@ We remove invalid linefeeds and 8-bit characters from 7-bit RFC822 text.
 
 ### Perl modules
 
-Installing this script requires installing many CPAN dependencies. If you're confused, feel free to seaerch for things like "installing CPAN <platform>". In some cases, an environment's package manager may have all these scripts. At least one Ubuntu user was able to install all the dependencies using the package manager (all but one: they could install the `Text::LevenshteinXS` module rather than `Text::Levenshtein::XS`, and changed the dependency in the Perl script to match.)
+Installing this script requires installing many CPAN dependencies. If you're confused, feel free to search for things like "installing CPAN <platform>". In some cases, an environment's package manager may have all these scripts. At least one Ubuntu user was able to install all the dependencies using the package manager (all but one: they could install the `Text::LevenshteinXS` module rather than `Text::Levenshtein::XS`, so they just changed the dependency in the Perl script to match.)
 
 ### email2pdf
 
