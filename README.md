@@ -118,6 +118,7 @@ This tool directly executes the `email2pdf` script specified by the `--email2pdf
 
 Significant changes:
 
+* 2020-01-03: Faster PDF generation, with fewer conversion errors
 * 2019-12-17: Checks /topics/ for attachments and email descriptions
 * 2019-12-11: Checks /attachments/ for attachments
 * 2019-12-10: Support for PDF generation
