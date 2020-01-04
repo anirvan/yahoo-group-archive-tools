@@ -266,7 +266,7 @@ sub run {
 
         }
 
-        # 6.3. Load the email from disk
+        # 6.3. Load the email from the Yahoo API JSON data
 
         if ( $email_record->{rawEmail} ) {
             my $raw_message = decode_entities( $email_record->{rawEmail} );
@@ -282,7 +282,7 @@ sub run {
                 Email::MIME->new($raw_message);
             };
 
-            # 5.4. Fix redacted email headers! Many of the headers
+            # 6.4. Fix redacted email headers! Many of the headers
             #      have the email domain names redacted, e.g. a 'From'
             #      header set to "Fred Jones <fred.jones@...>". We
             #      happen to know either the user's Yahoo profile
@@ -317,7 +317,7 @@ sub run {
                 }
             }
 
-            # 6.4. Yahoo Groups API detaches all attachments, so we go
+            # 6.5. Yahoo Groups API detaches all attachments, so we go
             #      through all the message parts, try to guess which
             #      attachments go where, and manually reattach them
 
@@ -580,7 +580,7 @@ sub run {
                 );
             }
 
-            # 6.5. In some cases, there can be attachments that were
+            # 6.6. In some cases, there can be attachments that were
             #      not re-attached because we didn't find a reference
             #      to them in one of the message parts. In those
             #      cases, we go through the list of un-reattached
@@ -619,7 +619,7 @@ sub run {
                 }
             }
 
-            # 5.7. Write the RFC822 email to disk
+            # 6.7. Write the RFC822 email to disk
 
             my $email_destination_dir = $destination_dir->catdir('email');
             $email_destination_dir->mkdir
