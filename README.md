@@ -126,7 +126,6 @@ Significant changes:
 
 ## 7. Bugs and todo
 
-* Capture email2pdf PDF conversion errors, instead of discarding them
 * Catch and solve some of the most common email2pdf errors
 * Maybe fix redacted headers in sub-parts so the message is valid
 * Need to verify that attached files round trip correctly
