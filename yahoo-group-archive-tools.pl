@@ -305,7 +305,7 @@ sub run {
                 if ($yahoo_identifier) {
                     my $header_text = eval {
                         local $SIG{__WARN__} = sub { };    # ignore warnings
-                        $email->header($header_name);
+                        $email->header_raw($header_name);
                     } // '';
                     my $fixed_header_text = $header_text;
                     if ( $fixed_header_text
