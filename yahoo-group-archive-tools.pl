@@ -1,7 +1,6 @@
 #!perl
 
 use CAM::PDF;
-use Capture::Tiny 'capture';
 use Date::Format 'time2str';
 use Email::MIME;
 use Email::Sender::Transport::Mbox;
@@ -9,6 +8,7 @@ use File::Temp;
 use Getopt::Long 'GetOptions';
 use HTML::Entities 'decode_entities';
 use IO::All 'io';
+use IPC::Cmd ();
 use JSON 'decode_json';
 use Log::Dispatch;
 use MCE::Loop;
@@ -1077,17 +1077,23 @@ sub build_pdf {
 
     my ( $ok, @warnings );
 
-    my ( $stdout, $stderr, $exit ) = capture {
-        system( $email2pdf_path, '--headers', '-i', $email_file->name,
-                '--output-file', $temp_pdf_file->name,
-                '--mostly-hide-warnings' );
-    };
+    my @system_args = ( $email2pdf_path, '--headers',
+                        '-i',            $email_file->name,
+                        '--output-file', $temp_pdf_file->name,
+                        '--mostly-hide-warnings'
+    );
+
+    my ( $cmd_success, $cmd_error_message, $cmd_full_buf, $cmd_stdout_buf,
+         $stderr )
+        = IPC::Cmd::run( command => \@system_args, timeout => 60 );
 
     if ( $stderr and $stderr =~ m/\w/ ) {
         push @warnings, $stderr;
     }
 
-    if ( $temp_pdf_file->exists and $temp_pdf_file->size > 0 ) {
+    if (     $cmd_success
+         and $temp_pdf_file->exists
+         and $temp_pdf_file->size > 0 ) {
         $temp_pdf_file->close;
         $final_pdf_file->unlink if $final_pdf_file->exists;
         $temp_pdf_file > $final_pdf_file;
