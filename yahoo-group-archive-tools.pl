@@ -936,7 +936,7 @@ sub run {
             if ( $ok and $final_pdf_file->exists ) {
                 my $tries_text = '';
                 if ( $num_build_tries == 0 and $noclobber_pdf ) {
-                    $tries_text = ' reusing the file that was already there,';
+                    $tries_text = ' reusing the file that was already there';
                 } elsif ( $num_build_tries != 1 ) {
                     $tries_text = " after $num_build_tries tries";
                 }
