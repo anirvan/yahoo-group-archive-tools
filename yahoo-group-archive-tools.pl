@@ -753,24 +753,64 @@ sub run {
                 if ($email) {
 
                     my @textual_subparts;
-                    $email->walk_parts(
-                        sub {
-                            my ($part) = @_;
-                            local $SIG{__WARN__} = sub { };  # ignore warnings
-                            return if $part->subparts;
-                            my $content_type = $part->content_type;
-                            if (     $content_type
-                                 and $content_type =~ m{^text/(plain|html)}
-                                 and length( $part->body_str ) ) {
-                                push @textual_subparts, $part;
-                            }
-                        }
-                    );
+                    {
+                        my ( @good_textual_subparts,
+                             @textual_subparts_to_forcibly_turn_into_plain );
 
-                    # We want to focus on the longest text subparts
-                    @textual_subparts = sort {
-                        length( $b->body_str ) cmp length( $a->body_str )
-                    } @textual_subparts;
+                        $email->walk_parts(
+                            sub {
+                                my ($part) = @_;
+                                local $SIG{__WARN__}
+                                    = sub { };    # ignore warnings
+                                return if $part->subparts;
+                                return
+                                    if $part->header_raw(
+                                          'X-Yahoo-Groups-Content-Truncated');
+                                return
+                                    if $part->header_raw(
+                                       'X-Yahoo-Groups-Attachment-Not-Found');
+                                my $content_type = $part->content_type;
+                                if (     $content_type
+                                     and $content_type =~ m{^text/}i
+                                     and length( $part->body_raw ) >= 10 ) {
+                                    if ( $content_type
+                                         =~ m{^text/(plain|html)}i ) {
+                                        push @good_textual_subparts, $part;
+                                    } elsif (
+                                         $content_type =~ m{^text/enriched}i )
+                                    {
+                                        push
+                                            @textual_subparts_to_forcibly_turn_into_plain,
+                                            $part;
+                                    }
+
+                                }
+                            }
+                        );
+
+                        # We want to focus on the longest text subparts
+                        @good_textual_subparts = sort {
+                            length( $b->body_str ) cmp length( $a->body_str )
+                        } @good_textual_subparts;
+
+                        if ( $good_textual_subparts[0] ) {
+                            push @textual_subparts, $good_textual_subparts[0];
+                        }
+                        if ( $good_textual_subparts[1]
+                             and length( $good_textual_subparts[1] )
+                             >= length( $good_textual_subparts[1] ) * 0.2 ) {
+                            push @textual_subparts, $good_textual_subparts[1];
+                        }
+
+                        if ($textual_subparts_to_forcibly_turn_into_plain[0] )
+                        {
+                            $textual_subparts_to_forcibly_turn_into_plain[0]
+                                ->content_type_set('text/plain');
+                            push @textual_subparts,
+                                $textual_subparts_to_forcibly_turn_into_plain
+                                [0];
+                        }
+                    }
 
                    # A wide range of possible versions of the email to compare
                     my @email_strings_to_try;
