@@ -716,28 +716,36 @@ sub run {
             $final_pdf_file->unlink if $final_pdf_file->exists;
 
             my ( $ok, $warnings_list );
+            my $num_build_tries = 0;
+
+            # Sometimes the PDF conversion is wonky, so we try doing
+            # the conversion up to 3 times.
             for my $attempt ( 1 .. 3 ) {
                 sleep( $attempt - 1 );
+                $num_build_tries++;
                 ( $ok, $warnings_list )
                     = build_pdf( $email_file, $final_pdf_file, $list_name );
                 last if $ok;
             }
 
             # Well that didn't work! So as a last ditch effort, we're
-            # going to try to simplify the email by grabbing only the
-            # longest textual content piece.
+            # going to try to simplify the email by grabbing the
+            # longest textual content piece(s).
+
             if ( !$ok ) {
                 my $email_raw = eval { io($email_file)->file->binary->all };
                 my $email = eval {
                     local $SIG{__WARN__} = sub { };    # ignore warnings
                     Email::MIME->new($email_raw);
                 };
+
                 if ($email) {
+
                     my @textual_subparts;
                     $email->walk_parts(
                         sub {
                             my ($part) = @_;
-                            local $SIG{__WARN__} = undef;    # ignore warnings
+                            local $SIG{__WARN__} = sub { };  # ignore warnings
                             return if $part->subparts;
                             my $content_type = $part->content_type;
                             if (     $content_type
@@ -748,24 +756,115 @@ sub run {
                         }
                     );
 
-                    # Pick the longest text subpart, and create a new
-                    # email consisting only of that section.
-                    if (@textual_subparts) {
-                        @textual_subparts = sort {
-                            length( $b->body_str ) cmp length( $a->body_str )
-                        } @textual_subparts;
-                        $email->parts_set( [ $textual_subparts[0] ] );
-                        my $temp_email_fh = File::Temp->new( UNLINK => 1 );
-                        my $temp_simple_email_file
-                            = io( $temp_email_fh->filename );
-                        $temp_simple_email_file->print( $email->as_string );
-                        ( $ok, $warnings_list )
-                            = build_pdf( $temp_simple_email_file,
-                                         $final_pdf_file, $list_name );
+                    # We want to focus on the longest text subparts
+                    @textual_subparts = sort {
+                        length( $b->body_str ) cmp length( $a->body_str )
+                    } @textual_subparts;
+
+                   # A wide range of possible versions of the email to compare
+                    my @email_strings_to_try;
+
+                    # We'll try the subparts straight up
+                    foreach my $subpart ( $textual_subparts[0],
+                                          $textual_subparts[1] ) {
+                        next unless $subpart;
+                        eval {
+                            local $SIG{__WARN__} = sub { };  # ignore warnings
+                            local $SIG{__DIE__}  = sub { };  # ignore dies
+                            $email->parts_set( [$subpart] );
+                            push @email_strings_to_try, $email->as_string;
+                        };
+                    }
+
+                    # And we'll try the subparts forcibly re-encoded
+                    # to the specified charset
+                    foreach my $subpart ( $textual_subparts[0],
+                                          $textual_subparts[1] ) {
+                        next unless $subpart;
+                        eval {
+                            local $SIG{__WARN__} = sub { };  # ignore warnings
+                            local $SIG{__DIE__}  = sub { };  # ignore dies
+                            $subpart->encode_check_set(0);
+                            my $body = $subpart->body_str;
+                            $subpart->body_str_set($body);
+                            $email->parts_set( [$subpart] );
+                            push @email_strings_to_try, $email->as_string;
+                        };
+                    }
+
+                    # And heck, what if we just make a brand new email?
+                    # This might help with boundary issues
+                    foreach my $subpart ( $textual_subparts[0],
+                                          $textual_subparts[1] ) {
+                        next unless $subpart;
+                        eval {
+                            local $SIG{__WARN__} = sub { };  # ignore warnings
+                            local $SIG{__DIE__}  = sub { };  # ignore dies
+
+                            my @to      = $email->header_str('To');
+                            my @from    = $email->header_str('From');
+                            my @date    = $email->header_str('Date');
+                            my @subject = $email->header_str('Subject');
+
+                            my $new_email
+                                = Email::MIME->create(header_str => [
+                                                          From    => \@from,
+                                                          To      => \@to,
+                                                          Date    => \@date,
+                                                          Subkect => \@subject
+                                                      ],
+                                                      parts => [$subpart],
+                                );
+
+                            push @email_strings_to_try, $new_email->as_string;
+                        };
+                    }
+
+                    # And we'll try the subparts forcibly ASCII'd
+                    foreach my $subpart ( $textual_subparts[0],
+                                          $textual_subparts[1] ) {
+                        next unless $subpart;
+                        eval {
+                            local $SIG{__WARN__} = sub { };  # ignore warnings
+                            local $SIG{__DIE__}  = sub { };  # ignore dies
+                            $subpart->encode_check_set(0);
+                            my $body = $subpart->body;
+                            $body =~ s/[^[:ascii:]]/ /g;   # ensure 7 bit safe
+                            $subpart->charset_set('US-ASCII');
+                            $subpart->body_set($body);
+                            $email->parts_set( [$subpart] );
+                            push @email_strings_to_try, $email->as_string;
+                        };
+                    }
+
+                    if (@email_strings_to_try) {
                         $log->debug(
                             "[$list_name] PDF $email_count: conversion wasn't working, so we're trying to simplify it"
                         );
-                        $temp_simple_email_file->unlink;
+
+                        my %email_strings_seen;
+
+                    EachEmailToTry:
+                        foreach
+                            my $email_string_to_try (@email_strings_to_try) {
+                            next if $email_strings_seen{$email_string_to_try};
+                            $email_strings_seen{$email_string_to_try} = 1;
+                            my $temp_email_fh
+                                = File::Temp->new( UNLINK => 1 );
+                            my $temp_simplified_email_file
+                                = io( $temp_email_fh->filename );
+                            $temp_simplified_email_file->print(
+                                                        $email_string_to_try);
+                            $num_build_tries++;
+                            ( $ok, $warnings_list )
+                                = build_pdf( $temp_simplified_email_file,
+                                             $final_pdf_file, $list_name );
+                            $temp_simplified_email_file->unlink;
+
+                            if ($ok) {
+                                last EachEmailToTry;
+                            }
+                        }
                     }
                 }
             }
@@ -779,8 +878,12 @@ sub run {
             }
 
             if ( $ok and $final_pdf_file->exists ) {
+                my $tries_text = '';
+                if ( $num_build_tries > 1 ) {
+                    $tries_text = " after $num_build_tries tries";
+                }
                 $log->info(
-                    "[$list_name] PDF $email_id: created PDF $final_pdf_file ($email_count of $email_max)"
+                    "[$list_name] PDF $email_id: created PDF ${final_pdf_file}${tries_text} ($email_count of $email_max)"
                 );
                 MCE->gather( $final_pdf_file->name );
                 push @pdf_files, $final_pdf_file;
