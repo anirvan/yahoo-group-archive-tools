@@ -22,8 +22,8 @@ use strict;
 use utf8;
 use 5.14.0;
 
-my ( $source_path, $destination_path, $uniform_names, $run_pdf,
-     $email2pdf_path );
+my ( $source_path, $destination_path, $uniform_names,
+     $run_pdf,     $email2pdf_path,   $noclobber_pdf );
 
 my $log = logger();
 handle_options();
@@ -53,6 +53,7 @@ OPTIONS
 
     --pdf             use email2pdf to generate PDF files (experimental!)
     --email2pdf       location of email2pdf Python script
+    --noclobber-pdf   do not regenerate a PDF file if it already exists
 
     --help            print this help message
 
@@ -81,6 +82,7 @@ END
                                     'help'          => \$do_help,
                                     'pdf'           => \$run_pdf,
                                     'email2pdf=s'   => \$email2pdf_path,
+                                    'noclobber-pdf' => \$noclobber_pdf,
     );
 
     unless ($getopt_worked) {
@@ -713,14 +715,23 @@ sub run {
                 $email_id = $1;
             }
             my $final_pdf_file = $pdf_dir->catfile($pdf_filename);
-            $final_pdf_file->unlink if $final_pdf_file->exists;
+
+            unless ($noclobber_pdf) {
+                $final_pdf_file->unlink if $final_pdf_file->exists;
+            }
 
             my ( $ok, $warnings_list );
             my $num_build_tries = 0;
 
+            if ( $noclobber_pdf and $final_pdf_file->exists ) {
+                $ok            = 1;
+                $warnings_list = [];
+            }
+
             # Sometimes the PDF conversion is wonky, so we try doing
             # the conversion up to 3 times.
             for my $attempt ( 1 .. 3 ) {
+                last if $ok;
                 sleep( $attempt - 1 );
                 $num_build_tries++;
                 ( $ok, $warnings_list )
@@ -879,7 +890,9 @@ sub run {
 
             if ( $ok and $final_pdf_file->exists ) {
                 my $tries_text = '';
-                if ( $num_build_tries > 1 ) {
+                if ( $num_build_tries == 0 and $noclobber_pdf ) {
+                    $tries_text = ' reusing the file that was already there,';
+                } elsif ( $num_build_tries != 1 ) {
                     $tries_text = " after $num_build_tries tries";
                 }
                 $log->info(
