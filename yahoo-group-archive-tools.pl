@@ -914,6 +914,9 @@ sub run {
         }
         0, $#generated_email_files;
 
+        @pdf_file_paths = grep {$_} @pdf_file_paths;
+        @pdf_file_paths = sort { ncmp( $a, $b ) } @pdf_file_paths;
+
         # 8.2 Create merged PDF file
 
     EachPdfFileToAppend:
