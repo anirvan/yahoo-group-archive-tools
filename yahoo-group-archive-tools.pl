@@ -1083,12 +1083,12 @@ sub build_pdf {
                         '--mostly-hide-warnings'
     );
 
-    my ( $cmd_success, $cmd_error_message, $cmd_full_buf, $cmd_stdout_buf,
-         $stderr )
-        = IPC::Cmd::run( command => \@system_args, timeout => 60 );
+    my ( $cmd_success,    $cmd_error_message, $cmd_full_buf,
+         $cmd_stdout_buf, $stderr_array
+    ) = IPC::Cmd::run( command => \@system_args, timeout => 60 );
 
-    if ( $stderr and $stderr =~ m/\w/ ) {
-        push @warnings, $stderr;
+    if ( $stderr_array and @{$stderr_array} ) {
+        push @warnings, @{$stderr_array};
     }
 
     if (     $cmd_success
