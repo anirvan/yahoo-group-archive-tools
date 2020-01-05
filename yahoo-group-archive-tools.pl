@@ -935,8 +935,9 @@ sub run {
     EachPdfFileToAppend:
         if (@pdf_file_paths) {
 
+            my $num_pdfs_to_combine = scalar @pdf_file_paths;
             $log->notice(
-                qq{[$list_name] attempting to combine all the PDF files in $pdf_dir into a single PDF file. This might fail if memory is low. Feel free to report this as a bug.}
+                qq{[$list_name] attempting to combine all $num_pdfs_to_combine PDF files in $pdf_dir into a single PDF file. This might fail if memory is low. Feel free to report this as a bug.}
             );
 
             my $combined_pdf_file
