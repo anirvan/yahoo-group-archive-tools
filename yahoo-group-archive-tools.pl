@@ -313,11 +313,16 @@ sub run {
                         or $fixed_header_text
                         =~ s{^([^<]+@)\.\.\.$}{$1$yahoo_identifier.yahoo.invalid}g
                         ) {
-                        $email->header_set(
-                              "X-Original-Yahoo-Groups-Redacted-$header_name",
-                              $header_text );
                         $email->header_set( $header_name,
                                             $fixed_header_text );
+
+                        # found an issue with empty-ish bodies, so skipping
+                        if ( ( $email->body_raw // '' ) =~ m/\w/ ) {
+                            $email->header_set(
+                                "X-Original-Yahoo-Groups-Redacted-$header_name",
+                                $header_text
+                            );
+                        }
                     }
                 }
             }
