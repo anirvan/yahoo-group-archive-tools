@@ -706,7 +706,9 @@ sub run {
                 $number_of_workers_to_execute = 16;
             }
         }
-        MCE::Loop::init { max_workers => $number_of_workers_to_execute };
+        MCE::Loop::init { max_workers => $number_of_workers_to_execute,
+                          chunk_size  => 10
+        };
 
         my $loop_function = sub {
             my $email_position = shift;
