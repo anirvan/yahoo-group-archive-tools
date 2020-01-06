@@ -1096,8 +1096,10 @@ sub build_pdf {
     my ( $email_file, $final_pdf_file, $list_name ) = @_;
 
     # make temp dir
-    my $pdf_build_dir_path = File::Temp->newdir();
-    my $pdf_build_dir      = io($pdf_build_dir_path)->dir;
+    my $pdf_build_dir_path =
+        File::Temp->newdir( 'yahoo-groups-archive-tools-pdf-XXXXXXXXXX',
+                            TMPDIR => 1 );
+    my $pdf_build_dir = io($pdf_build_dir_path)->dir;
     $pdf_build_dir->chdir;
 
     my $temp_pdf_file = $pdf_build_dir->catfile('out.pdf');
