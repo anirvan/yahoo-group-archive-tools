@@ -941,6 +941,9 @@ sub run {
 
                             if ($ok) {
                                 last EachEmailToTry;
+                            } else {
+                                sleep( 1 + rand(2) );
+                                next EachEmailToTry;
                             }
                         }
                     }
