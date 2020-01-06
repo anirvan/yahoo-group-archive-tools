@@ -1006,8 +1006,13 @@ sub run {
         if (@pdf_file_paths) {
 
             my $num_pdfs_to_combine = scalar @pdf_file_paths;
+            my $memory_warning      = '';
+            if ( $num_pdfs_to_combine > 100 ) {
+                $memory_warning
+                    = ' This might fail if memory is low. Feel free to report this as a bug.';
+            }
             $log->notice(
-                qq{[$list_name] attempting to combine all $num_pdfs_to_combine PDF files in $pdf_dir into a single PDF file. This might fail if memory is low. Feel free to report this as a bug.}
+                qq{[$list_name] attempting to combine all $num_pdfs_to_combine PDF files in $pdf_dir into a single PDF file.$memory_warning}
             );
 
             my $combined_pdf_file
