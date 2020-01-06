@@ -175,12 +175,32 @@ sub run {
     my $list_name;
     {
         my $about_file = io($source_dir)->catfile( 'about', 'about.json' );
-        die "Can't access list description file at $about_file\n"
-            unless $about_file->exists
-            and $about_file->is_readable;
-        my $json  = $about_file->all;
-        my $about = decode_json($json);
-        $list_name = $about->{name} if $about->{name};
+        unless ( defined $list_name ) {
+            if (     $about_file->exists
+                 and $about_file->is_readable ) {
+                my $json  = $about_file->all;
+                my $about = decode_json($json);
+                $list_name = $about->{name} if $about->{name};
+            }
+        }
+
+        my $archive_file = io($source_dir)->catfile('archive.log');
+        unless ( defined $list_name ) {
+            if ( $archive_file->exists and $archive_file->is_readable ) {
+                while ( my $line = $archive_file->getline ) {
+                    if ( $line
+                         =~ m{/api/v1/groups/([^/\s]+)/(messages|topic)} ) {
+                        $list_name = $1;
+                        last;
+                    }
+                }
+            }
+        }
+
+        unless ( defined $list_name and $list_name =~ m/\w/ ) {
+            die
+                "Can't seem to find the list name from either $about_file or $archive_file";
+        }
     }
 
     # 5. Generate uniform names which will be used for files
