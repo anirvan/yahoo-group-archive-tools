@@ -1002,8 +1002,35 @@ sub run {
 
         # 8.2 Create merged PDF file
 
-    EachPdfFileToAppend:
-        if (@pdf_file_paths) {
+        @pdf_files = map { io($_)->file } @pdf_file_paths;
+        my $combined_pdf_file
+            = $combined_pdf_dir->catfile("$list_file_name_prefix.pdf");
+
+        # Create new combined if we have PDF files to combine.
+        # But if we're in noclobber mode, do it if and only if we
+        #   actually wrote some new PDF files.
+        my $do_we_need_to_create_combined_pdf = 0;
+        if (@pdf_files) {
+            $do_we_need_to_create_combined_pdf = 1;
+            if ( $noclobber_pdf and $combined_pdf_file->exists ) {
+                my $did_we_create_at_least_one_new_pdf_file = 0;
+                foreach my $pdf_file (@pdf_files) {
+                    my $script_start_time  = $^T;
+                    my $time_last_modified = $pdf_file->mtime;
+                    if ( $time_last_modified > $script_start_time ) {
+                        $did_we_create_at_least_one_new_pdf_file = 1;
+                    }
+                }
+                if ( !$did_we_create_at_least_one_new_pdf_file ) {
+                    $do_we_need_to_create_combined_pdf = 0;
+                    $log->notice(
+                        qq{[$list_name] no need to combine PDF files in $pdf_dir since it's already there}
+                    );
+                }
+            }
+        }
+
+        if ($do_we_need_to_create_combined_pdf) {
 
             my $num_pdfs_to_combine = scalar @pdf_file_paths;
             my $memory_warning      = '';
@@ -1015,19 +1042,16 @@ sub run {
                 qq{[$list_name] attempting to combine all $num_pdfs_to_combine PDF files in $pdf_dir into a single PDF file.$memory_warning}
             );
 
-            my $combined_pdf_file
-                = $combined_pdf_dir->catfile("$list_file_name_prefix.pdf");
-
-            my @pdf_files = map { io($_)->file } @pdf_file_paths;
-
             my $first_pdf_file      = shift @pdf_files;
             my $combined_pdf_object = CAM::PDF->new( $first_pdf_file->name )
                 || {
-                $log->warning(
+                $log->error(
                     "[$list_name] could not create combined PDF file. CAM::PDF error is '$CAM::PDF::errstr'"
                 )
                 };
             if ($combined_pdf_object) {
+
+            EachPdfFileToAppend:
                 while ( my $pdf_file = shift @pdf_files ) {
                     my $this_pdf_object = CAM::PDF->new( $pdf_file->name )
                         || do {
