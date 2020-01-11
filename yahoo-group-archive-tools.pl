@@ -1042,37 +1042,49 @@ sub run {
                 qq{[$list_name] attempting to combine all $num_pdfs_to_combine PDF files in $pdf_dir into a single PDF file.$memory_warning}
             );
 
-            my $first_pdf_file      = shift @pdf_files;
-            my $combined_pdf_object = CAM::PDF->new( $first_pdf_file->name )
-                || {
-                $log->error(
-                    "[$list_name] could not create combined PDF file. CAM::PDF error is '$CAM::PDF::errstr'"
-                )
-                };
-            if ($combined_pdf_object) {
+            eval {
 
-            EachPdfFileToAppend:
-                while ( my $pdf_file = shift @pdf_files ) {
-                    my $this_pdf_object = CAM::PDF->new( $pdf_file->name )
-                        || do {
-                        $log->warning(
-                            "[$list_name] could not append $pdf_file to combined PDF file, so skipping this email. CAM::PDF error is '$CAM::PDF::errstr'"
-                        );
-                        next EachPdfFileToAppend;
-                        };
-                    $combined_pdf_object->appendPDF($this_pdf_object)
-                        || do {
-                        $log->warning(
-                            "[$list_name] could not append $pdf_file to combined PDF file, so skipping this email. CAM::PDF error is '$CAM::PDF::errstr'"
-                        );
-                        next EachPdfFileToAppend;
-                        };
+                my $first_pdf_file = shift @pdf_files;
+                my $combined_pdf_object
+                    = CAM::PDF->new( $first_pdf_file->name )
+                    || {
+                    $log->error(
+                        "[$list_name] could not create combined PDF file. CAM::PDF error is '$CAM::PDF::errstr'"
+                    )
+                    };
+                if ($combined_pdf_object) {
+
+                EachPdfFileToAppend:
+                    while ( my $pdf_file = shift @pdf_files ) {
+                        my $this_pdf_object = CAM::PDF->new( $pdf_file->name )
+                            || do {
+                            $log->warning(
+                                "[$list_name] could not append $pdf_file to combined PDF file, so skipping this email. CAM::PDF error is '$CAM::PDF::errstr'"
+                            );
+                            next EachPdfFileToAppend;
+                            };
+                        $combined_pdf_object->appendPDF($this_pdf_object)
+                            || do {
+                            $log->warning(
+                                "[$list_name] could not append $pdf_file to combined PDF file, so skipping this email. CAM::PDF error is '$CAM::PDF::errstr'"
+                            );
+                            next EachPdfFileToAppend;
+                            };
+                    }
                 }
+                $combined_pdf_object->cleanoutput( $combined_pdf_file->name );
+            };
+
+            if ( $combined_pdf_file->exists and $combined_pdf_file->size ) {
+                $log->notice(
+                    "[$list_name] wrote consolidated PDF file at $combined_pdf_file"
+                );
+            } else {
+                $combined_pdf_file->unlink if $combined_pdf_file->exists;
+                $log->error(
+                    "[$list_name] failed to write consolidated PDF file at $combined_pdf_file"
+                );
             }
-            $combined_pdf_object->cleanoutput( $combined_pdf_file->name );
-            $log->notice(
-                "[$list_name] wrote consolidated PDF file at $combined_pdf_file"
-            );
         }
 
     }
