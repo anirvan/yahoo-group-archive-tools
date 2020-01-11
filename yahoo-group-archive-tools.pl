@@ -1179,7 +1179,7 @@ sub logger {
             [ [ 'Screen', min_level => $min_log_level, newline => 1 ] ],
         callbacks => sub {
             my %args = @_;
-            my $time = time2str( "%Y-%M-%d %H:%M:%S", time );
+            my $time = time2str( "%Y-%m-%d %H:%M:%S", time );
             return "[$time] $args{message}";
         }
     );
