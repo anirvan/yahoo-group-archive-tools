@@ -19,11 +19,13 @@ Many non-technical users won't know what to do with an mbox file, but will reall
   - IO::All
   - IPC::Cmd
   - JSON
+  - List::AllUtils
   - Log::Dispatch
   - MCE
   - Sort::Naturally
   - Text::Levenshtein::XS
   - autodie
+* **Optional**: if you're creating PDF files for lists with more than say 10,000 emails, you'll probably need to install [`qpdf`](http://qpdf.sourceforge.net/) to avoid running out of memory (there are packages for Yum/RPM, Debian/Ubuntu, and MacOS brew)
 
 ### Basic usage:
 
@@ -118,6 +120,7 @@ This tool directly executes the `email2pdf` script specified by the `--email2pdf
 
 Significant changes:
 
+* 2020-01-14: Uses qpdf to create combined PDFs for lists with many emails
 * 2020-01-05: Faster PDF generation, with fewer conversion errors
 * 2019-12-17: Checks /topics/ for attachments and email descriptions
 * 2019-12-11: Checks /attachments/ for attachments

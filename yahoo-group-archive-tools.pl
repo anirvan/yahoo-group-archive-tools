@@ -10,6 +10,7 @@ use HTML::Entities 'decode_entities';
 use IO::All 'io';
 use IPC::Cmd ();
 use JSON 'decode_json';
+use List::AllUtils 'natatime';
 use Log::Dispatch;
 use MCE::Loop;
 use MCE::Util;
@@ -1042,9 +1043,22 @@ sub run {
                 qq{[$list_name] attempting to combine all $num_pdfs_to_combine PDF files in $pdf_dir into a single PDF file.$memory_warning}
             );
 
+            my $do_we_have_qpdf_installed = do_we_have_qpdf_installed();
+
             eval {
 
-                my $first_pdf_file = shift @pdf_files;
+                # the CAM::PDF method is memory intensive, so we use
+                # it only up to a certain point, before falling back
+                # to qpdf
+                if ( $do_we_have_qpdf_installed and @pdf_files > 10_000 ) {
+                    $log->error(
+                        "[$list_name] skipping CAM::PDF as PDF combining method because we have lots of emails, will try qpdf instead"
+                    );
+                    return;
+                }
+
+                my @pdf_files_to_combine = @pdf_files;
+                my $first_pdf_file       = shift @pdf_files_to_combine;
                 my $combined_pdf_object
                     = CAM::PDF->new( $first_pdf_file->name )
                     || {
@@ -1052,10 +1066,11 @@ sub run {
                         "[$list_name] could not create combined PDF file. CAM::PDF error is '$CAM::PDF::errstr'"
                     )
                     };
+
                 if ($combined_pdf_object) {
 
                 EachPdfFileToAppend:
-                    while ( my $pdf_file = shift @pdf_files ) {
+                    while ( my $pdf_file = shift @pdf_files_to_combine ) {
                         my $this_pdf_object = CAM::PDF->new( $pdf_file->name )
                             || do {
                             $log->warning(
@@ -1081,9 +1096,79 @@ sub run {
                 );
             } else {
                 $combined_pdf_file->unlink if $combined_pdf_file->exists;
-                $log->error(
-                    "[$list_name] failed to write consolidated PDF file at $combined_pdf_file"
-                );
+
+                if ($do_we_have_qpdf_installed) {
+                    $log->info(
+                        "[$list_name] failed to write consolidated PDF file at $combined_pdf_file, will try qpdf instead"
+                    );
+
+                    # qpdf can combine multiple PDFs into a
+                    # single final PDF. We're going to take batches of
+                    # PDF, and save them as roll-ups. Finally, we'll
+                    # merge all the roll-ups as needed.
+
+                    my $combined_pdf_build_dir_path
+                        = File::Temp->newdir(
+                               'yahoo-groups-archive-tools-pdf-gs-XXXXXXXXXX',
+                               TMPDIR => 1 );
+                    my $combined_pdf_build_dir
+                        = io($combined_pdf_build_dir_path)->dir;
+                    $combined_pdf_build_dir->chdir;
+
+                    my $it = natatime 1000, @pdf_files;
+                    my @rollup_pdf_files;
+
+                    my $pdfs_set_id = 0;
+                    my $got_error   = 0;
+                EachPdfSet:
+                    while ( my @pdf_files_to_merge = $it->() ) {
+                        $pdfs_set_id++;
+                        my $output_file
+                            = io("rollup_${pdfs_set_id}.pdf")->file;
+                        my ( $merged_ok, $merge_error_message )
+                            = merge_pdf_files_using_qpdf( $output_file,
+                                                        @pdf_files_to_merge );
+                        if ($merged_ok) {
+                            push @rollup_pdf_files, $output_file;
+                        } else {
+                            $got_error = 1;
+                            $log->error(
+                                "[$list_name] ERROR: failed to write qpdf-based PDF file, round 1.$pdfs_set_id. Reason is: $merge_error_message"
+                            );
+                        }
+                    }
+                    if ( !$got_error and @rollup_pdf_files ) {
+                        my $output_file;
+                        if ( scalar @rollup_pdf_files == 1 ) {
+                            $output_file = $rollup_pdf_files[0];
+                        } else {
+                            $output_file = io('final.pdf')->file;
+
+                            my ( $merged_ok, $merge_error_message )
+                                = merge_pdf_files_using_qpdf( $output_file,
+                                                          @rollup_pdf_files );
+                            unless ($merged_ok) {
+                                $log->error(
+                                    "[$list_name] ERROR: failed to write Qpdf-based PDF file, round 2. Reason is '$merge_error_message'"
+                                );
+                                $got_error = 1;
+                            }
+                        }
+                        if ( !$got_error and $output_file->exists ) {
+                            $output_file > $combined_pdf_file;
+                            if ( $combined_pdf_file->exists ) {
+                                $log->notice(
+                                    "[$list_name] wrote consolidated PDF file at $combined_pdf_file (fell back to using qpdf)"
+                                );
+                            }
+                        }
+                    }
+
+                } else {
+                    $log->error(
+                        "[$list_name] ERROR: failed to write consolidated PDF file at $combined_pdf_file, and we can't fall back to qpdf"
+                    );
+                }
             }
         }
 
@@ -1182,6 +1267,33 @@ sub build_pdf {
     }
 
     return ( $ok, \@warnings );
+}
+
+sub merge_pdf_files_using_qpdf {
+    my ( $output_file, @files_to_merge ) = @_;
+    $output_file->unlink if $output_file->exists;
+
+    my @command = ( 'qpdf', '--empty', '--pages',
+                    ( map { $_->name } @files_to_merge ),
+                    '--', $output_file
+    );
+    my ( $cmd_success,    $cmd_error_message, $cmd_full_buf,
+         $cmd_stdout_buf, $stderr_array )
+        = IPC::Cmd::run( command => \@command,
+                         timeout => 20_000 );
+
+    my $error_message = '';
+    if ( $cmd_success and $output_file->exists and $output_file->size > 0 ) {
+        return ( 1, $error_message );
+    } else {
+        $error_message = $cmd_error_message || $cmd_full_buf || 'error';
+        return ( 0, $error_message );
+    }
+}
+
+sub do_we_have_qpdf_installed {
+    state $do_we_have_qpdf_installed = IPC::Cmd::can_run('qpdf');
+    return $do_we_have_qpdf_installed;
 }
 
 sub logger {
