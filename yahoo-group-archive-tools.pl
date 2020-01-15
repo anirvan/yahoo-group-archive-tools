@@ -1149,7 +1149,7 @@ sub run {
                                                           @rollup_pdf_files );
                             unless ($merged_ok) {
                                 $log->error(
-                                    "[$list_name] ERROR: failed to write Qpdf-based PDF file, round 2. Reason is '$merge_error_message'"
+                                    "[$list_name] ERROR: failed to write qpdf-based PDF file, round 2. Reason is '$merge_error_message'"
                                 );
                                 $got_error = 1;
                             }
