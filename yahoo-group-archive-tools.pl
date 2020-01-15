@@ -890,7 +890,7 @@ sub run {
                                                           From    => \@from,
                                                           To      => \@to,
                                                           Date    => \@date,
-                                                          Subkect => \@subject
+                                                          Subject => \@subject
                                                       ],
                                                       parts => [$subpart],
                                 );
