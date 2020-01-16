@@ -24,7 +24,9 @@ use utf8;
 use 5.14.0;
 
 my ( $source_path, $destination_path, $uniform_names,
-     $run_pdf,     $email2pdf_path,   $noclobber_pdf );
+     $run_pdf,     $email2pdf_path,   $noclobber_pdf,
+     $noclobber_email
+);
 
 my $log = logger();
 handle_options();
@@ -54,6 +56,7 @@ OPTIONS
 
     --pdf             use email2pdf to generate PDF files (experimental!)
     --email2pdf       location of email2pdf Python script
+    --noclobber-email do not regenerate an email file if it already exists
     --noclobber-pdf   do not regenerate a PDF file if it already exists
 
     --help            print this help message
@@ -74,16 +77,17 @@ END
     my $verbosity_loudest = 0;
     my $verbosity_loud    = 0;
     my $verbosity_quiet   = 0;
-    my $getopt_worked = GetOptions( 'source=s'      => \$source_path,
-                                    'destination=s' => \$destination_path,
-                                    'uniform-names' => \$uniform_names,
-                                    'v|verbose'     => \$verbosity_loud,
-                                    'quiet'         => \$verbosity_quiet,
-                                    'noisy'         => \$verbosity_loudest,
-                                    'help'          => \$do_help,
-                                    'pdf'           => \$run_pdf,
-                                    'email2pdf=s'   => \$email2pdf_path,
-                                    'noclobber-pdf' => \$noclobber_pdf,
+    my $getopt_worked = GetOptions( 'source=s'        => \$source_path,
+                                    'destination=s'   => \$destination_path,
+                                    'uniform-names'   => \$uniform_names,
+                                    'v|verbose'       => \$verbosity_loud,
+                                    'quiet'           => \$verbosity_quiet,
+                                    'noisy'           => \$verbosity_loudest,
+                                    'help'            => \$do_help,
+                                    'pdf'             => \$run_pdf,
+                                    'email2pdf=s'     => \$email2pdf_path,
+                                    'noclobber-email' => \$noclobber_email,
+                                    'noclobber-pdf'   => \$noclobber_pdf,
     );
 
     unless ($getopt_worked) {
@@ -216,6 +220,12 @@ sub run {
 
     # 6. Write individual email files
 
+    my $email_destination_dir = $destination_dir->catdir('email');
+    $email_destination_dir->mkdir unless $email_destination_dir->exists;
+    die "Can't write to email output directory $email_destination_dir\n"
+        unless $email_destination_dir->exists
+        and $email_destination_dir->is_readable;
+
     my $email_count = 0;
     my $email_max   = scalar @email_filenames;
     my @generated_email_files;
@@ -225,10 +235,31 @@ sub run {
 
         # 6.1 Open the raw.json file, load the email
 
-        my $email_json       = $email_filename->all;
-        my $email_record     = decode_json($email_json);
-        my $email_message_id = $email_record->{msgId};
-        my $email_topic_id   = $email_record->{topicId};
+        my ( $email_json,     $email_record, $email_message_id,
+             $email_topic_id, $email_file );
+
+        if ( $email_filename->filename =~ m/^(\d+)_raw\.json$/ ) {
+            $email_message_id = $1;
+            $email_file
+                = $email_destination_dir->catfile("$email_message_id.eml");
+        }
+
+        if (     $noclobber_email
+             and $email_file->exists
+             and $email_file->size > 0 ) {
+            push @generated_email_files, $email_file;
+            $log->info(
+                "[$list_name] message $email_message_id: not overwriting existing email at $email_file ($email_count of $email_max)"
+            );
+            next;
+        } else {
+            $email_json       = $email_filename->all;
+            $email_record     = decode_json($email_json);
+            $email_message_id = $email_record->{msgId};
+            $email_topic_id   = $email_record->{topicId};
+            $email_file
+                = $email_destination_dir->catfile("$email_message_id.eml");
+        }
 
         # 6.2. Grab info on each attachment from [number].json files
 
@@ -652,16 +683,6 @@ sub run {
 
             # 6.7. Write the RFC822 email to disk
 
-            my $email_destination_dir = $destination_dir->catdir('email');
-            $email_destination_dir->mkdir
-                unless $email_destination_dir->exists;
-            die
-                "Can't write to email output directory $email_destination_dir\n"
-                unless $email_destination_dir->exists
-                and $email_destination_dir->is_readable;
-
-            my $email_file
-                = $email_destination_dir->catfile("$email_message_id.eml");
             $email_file->unlink if $email_file->exists;
             $email_file->print( $email->as_string );
             $email_file->close;
@@ -689,17 +710,36 @@ sub run {
 
     my $mbox_file
         = $mbox_destination_dir->catfile("$list_file_name_prefix.mbox");
-    $mbox_file->unlink;
-    my $transport = Email::Sender::Transport::Mbox->new(
+
+    my $do_we_need_to_create_mbox = 0;
+    if ( !( $mbox_file and $mbox_file->exists and $mbox_file->size > 0 ) ) {
+        $do_we_need_to_create_mbox = 0;
+    } else {
+        my $did_we_create_at_least_one_new_email_file
+            = were_any_of_these_files_modified_after_the_script_began(
+                                                      @generated_email_files);
+        if ($did_we_create_at_least_one_new_email_file) {
+            $do_we_need_to_create_mbox = 1;
+        }
+    }
+
+    if ($do_we_need_to_create_mbox) {
+        $mbox_file->unlink;
+        my $transport = Email::Sender::Transport::Mbox->new(
                                            { filename => $mbox_file->name } );
 
-    # need to check results after write!
-    foreach my $email_file (@generated_email_files) {
-        my $rfc822_email = $email_file->binary->all;
-        my $results      = $transport->send( $rfc822_email,
+        # need to check results after write!
+        foreach my $email_file (@generated_email_files) {
+            my $rfc822_email = $email_file->binary->all;
+            my $results      = $transport->send( $rfc822_email,
                                    { from => 'yahoo-groups-archive-tools' } );
+        }
+        $log->notice("[$list_name] wrote consolidated mailbox at $mbox_file");
+    } else {
+        $log->notice(
+            "[$list_name] already have a consolidated mailbox at $mbox_file, not regenerating"
+        );
     }
-    $log->notice("[$list_name] wrote consolidated mailbox at $mbox_file");
 
     # 8. Create PDF files
 
@@ -1014,14 +1054,9 @@ sub run {
         if (@pdf_files) {
             $do_we_need_to_create_combined_pdf = 1;
             if ( $noclobber_pdf and $combined_pdf_file->exists ) {
-                my $did_we_create_at_least_one_new_pdf_file = 0;
-                foreach my $pdf_file (@pdf_files) {
-                    my $script_start_time  = $^T;
-                    my $time_last_modified = $pdf_file->mtime;
-                    if ( $time_last_modified > $script_start_time ) {
-                        $did_we_create_at_least_one_new_pdf_file = 1;
-                    }
-                }
+                my $did_we_create_at_least_one_new_pdf_file
+                    = were_any_of_these_files_modified_after_the_script_began(
+                                                                  @pdf_files);
                 if ( !$did_we_create_at_least_one_new_pdf_file ) {
                     $do_we_need_to_create_combined_pdf = 0;
                     $log->notice(
@@ -1294,6 +1329,20 @@ sub merge_pdf_files_using_qpdf {
 sub do_we_have_qpdf_installed {
     state $do_we_have_qpdf_installed = IPC::Cmd::can_run('qpdf');
     return $do_we_have_qpdf_installed;
+}
+
+# takes one or more IO::All files
+# returns true if any of them were modified after the script started
+sub were_any_of_these_files_modified_after_the_script_began {
+    my @files             = @_;
+    my $script_start_time = $^T;
+    foreach my $file (@files) {
+        my $time_last_modified = $file->mtime;
+        if ( $time_last_modified > $script_start_time ) {
+            return 1;
+        }
+    }
+    return;
 }
 
 sub logger {
