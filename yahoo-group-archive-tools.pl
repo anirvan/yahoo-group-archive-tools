@@ -1144,8 +1144,8 @@ sub run {
 
                     my $combined_pdf_build_dir_path
                         = File::Temp->newdir(
-                               'yahoo-groups-archive-tools-pdf-gs-XXXXXXXXXX',
-                               TMPDIR => 1 );
+                             'yahoo-groups-archive-tools-pdf-qpdf-XXXXXXXXXX',
+                             TMPDIR => 1 );
                     my $combined_pdf_build_dir
                         = io($combined_pdf_build_dir_path)->dir;
                     $combined_pdf_build_dir->chdir;
