@@ -1000,15 +1000,19 @@ sub run {
             }
 
             if ( $ok and $final_pdf_file->exists ) {
-                my $tries_text = '';
                 if ( $num_build_tries == 0 and $noclobber_pdf ) {
-                    $tries_text = ' reusing the file that was already there';
-                } elsif ( $num_build_tries != 1 ) {
-                    $tries_text = " after $num_build_tries tries";
+                    $log->info(
+                        "[$list_name] PDF $email_id: reusing existing PDF ${final_pdf_file} ($email_count of $email_max)"
+                    );
+                } else {
+                    my $tries_text = '';
+                    if ( $num_build_tries != 1 ) {
+                        $tries_text = " after $num_build_tries tries";
+                    }
+                    $log->info(
+                        "[$list_name] PDF $email_id: created PDF ${final_pdf_file}${tries_text} ($email_count of $email_max)"
+                    );
                 }
-                $log->info(
-                    "[$list_name] PDF $email_id: created PDF ${final_pdf_file}${tries_text} ($email_count of $email_max)"
-                );
                 MCE->gather( $final_pdf_file->name );
                 push @pdf_files, $final_pdf_file;
             } else {
