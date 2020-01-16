@@ -248,7 +248,7 @@ sub run {
              and $email_file->exists
              and $email_file->size > 0 ) {
             push @generated_email_files, $email_file;
-            $log->info(
+            $log->debug(
                 "[$list_name] message $email_message_id: not overwriting existing email at $email_file ($email_count of $email_max)"
             );
             next;
@@ -1001,7 +1001,7 @@ sub run {
 
             if ( $ok and $final_pdf_file->exists ) {
                 if ( $num_build_tries == 0 and $noclobber_pdf ) {
-                    $log->info(
+                    $log->debug(
                         "[$list_name] PDF $email_id: reusing existing PDF ${final_pdf_file} ($email_count of $email_max)"
                     );
                 } else {
