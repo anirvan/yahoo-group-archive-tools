@@ -1014,7 +1014,6 @@ sub run {
                     );
                 }
                 MCE->gather( $final_pdf_file->name );
-                push @pdf_files, $final_pdf_file;
             } else {
                 $log->warning(
                     "[$list_name] PDF $email_id: could not create PDF $final_pdf_file based on $email_file ($email_count of $email_max), skipping for now."
