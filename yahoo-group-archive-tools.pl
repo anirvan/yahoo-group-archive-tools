@@ -1137,7 +1137,7 @@ sub run {
 
                 if ($do_we_have_qpdf_installed) {
                     $log->info(
-                        "[$list_name] failed to write consolidated PDF file at $combined_pdf_file, will try qpdf instead"
+                        "[$list_name] using qpdf to write consolidated PDF file at $combined_pdf_file"
                     );
 
                     # qpdf can combine multiple PDFs into a
