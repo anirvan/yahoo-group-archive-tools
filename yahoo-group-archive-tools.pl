@@ -926,13 +926,14 @@ sub run {
                             my @subject = $email->header_str('Subject');
 
                             my $new_email
-                                = Email::MIME->create(header_str => [
-                                                          From    => \@from,
-                                                          To      => \@to,
-                                                          Date    => \@date,
-                                                          Subject => \@subject
-                                                      ],
-                                                      parts => [$subpart],
+                                = Email::MIME->create(
+                                                   header_str => [
+                                                       From    => \@from,
+                                                       To      => \@to,
+                                                       Date    => $date[0],
+                                                       Subject => $subject[0],
+                                                   ],
+                                                   parts => [$subpart],
                                 );
 
                             push @email_strings_to_try, $new_email->as_string;

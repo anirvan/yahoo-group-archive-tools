@@ -120,6 +120,7 @@ This tool directly executes the `email2pdf` script specified by the `--email2pdf
 
 Significant changes:
 
+* 2020-01-21: Fixes bug where PDF Date/Subject sometimes listed as 'ARRAY'
 * 2020-01-14: Uses qpdf to create combined PDFs for lists with many emails
 * 2020-01-05: Faster PDF generation, with fewer conversion errors
 * 2019-12-17: Checks /topics/ for attachments and email descriptions
