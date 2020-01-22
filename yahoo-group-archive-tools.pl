@@ -1017,7 +1017,7 @@ sub run {
                 MCE->gather( $final_pdf_file->name );
             } else {
                 $log->warning(
-                    "[$list_name] PDF $email_id: could not create PDF $final_pdf_file based on $email_file ($email_count of $email_max), skipping for now."
+                    "[$list_name] PDF $email_id: could not create PDF $final_pdf_file based on $email_file even after $num_build_tries tries ($email_count of $email_max), skipping for now."
                 );
 
                 if ( !$log->would_log('debug') and @pdf_build_warnings ) {
