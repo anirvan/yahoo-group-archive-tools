@@ -339,6 +339,33 @@ sub run {
                 Email::MIME->new($raw_message);
             };
 
+            # Some emails where the very last header line is
+            # `X-eGroups-Approved-By:` do NOT have a return between
+            # the header and body. This makes for icky broken emails,
+            # so we try to fix this. Right now, we check to see that
+            # the line after the X-eGroups-Approved-By: headers (a)
+            # does not start with whitespace, and (b) contains no
+            # colons, but this may not be enough. For example, what
+            # what happens if the normal content line contains a
+            # colon? If this turns out to be a problem, this regexp
+            # could probably be tightened up, but testing is hard, and
+            # this works in most cases for now.
+
+            if ( $raw_message =~ m/X-eGroups-Approved-By/ ) {
+                my $raw_message_maybe_tweaked = $raw_message;
+                if ( $raw_message_maybe_tweaked
+                    =~ s/([\n\r]X-eGroups-Approved-By: [^\n\r]+\n)((?!\s)[^:]+[\n\r])/$1\n\n$2/s
+                    ) {
+                    my $email_maybe_tweaked = eval {
+                        local $SIG{__WARN__} = sub { };    # ignore warnings
+                        Email::MIME->new($raw_message_maybe_tweaked);
+                    };
+                    if ($email_maybe_tweaked) {
+                        $email = $email_maybe_tweaked;
+                    }
+                }
+            }
+
             # 6.4. Fix redacted email headers! Many of the headers
             #      have the email domain names redacted, e.g. a 'From'
             #      header set to "Fred Jones <fred.jones@...>". We
