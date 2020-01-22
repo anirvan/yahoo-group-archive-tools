@@ -762,13 +762,13 @@ sub run {
         # thrice CPUs, but never more than 16
         my $number_of_workers_to_execute;
         {
-            $number_of_workers_to_execute = MCE::Util::get_ncpu() * 3;
+            $number_of_workers_to_execute = MCE::Util::get_ncpu() * 4;
             if ( $number_of_workers_to_execute > 16 ) {
                 $number_of_workers_to_execute = 16;
             }
         }
         MCE::Loop::init { max_workers => $number_of_workers_to_execute,
-                          chunk_size  => 10
+                          chunk_size  => 5
         };
 
         my $loop_function = sub {
