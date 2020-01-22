@@ -1086,12 +1086,14 @@ sub run {
 
             eval {
 
-                # the CAM::PDF method is memory intensive, so we use
-                # it only up to a certain point, before falling back
-                # to qpdf
-                if ( $do_we_have_qpdf_installed and @pdf_files > 10_000 ) {
-                    $log->error(
-                        "[$list_name] skipping CAM::PDF as PDF combining method because we have lots of emails, will try qpdf instead"
+                # CAM::PDF is memory intensive, so we use it only up
+                # to a certain point, before falling back to qpdf
+                my $maximum_count_of_pdfs_before_we_fall_back_to_qpdf = 250;
+                if (     $do_we_have_qpdf_installed
+                     and @pdf_files
+                     > $maximum_count_of_pdfs_before_we_fall_back_to_qpdf ) {
+                    $log->debug(
+                        "[$list_name] using qpdf instead of CAM::PDF as PDF combining method"
                     );
                     return;
                 }
