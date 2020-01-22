@@ -957,6 +957,23 @@ sub run {
                         };
                     }
 
+                    # And this is extreme, but we'll try making the
+                    # *entire* email 7-bit. This will mess with emails
+                    # where most of the text isn't 7-bit clean.
+                    {
+                        my $seven_bit_email_raw = $email_raw;
+                        $seven_bit_email_raw
+                            =~ s/[^[:ascii:]]/ /g;    # ensure 7 bit safe
+                        my $seven_bit_email = eval {
+                            local $SIG{__WARN__} = sub { };  # ignore warnings
+                            Email::MIME->new($seven_bit_email_raw);
+                        };
+                        if ($seven_bit_email) {
+                            push @email_strings_to_try,
+                                $seven_bit_email->as_string;
+                        }
+                    }
+
                     if (@email_strings_to_try) {
                         $log->debug(
                             "[$list_name] PDF $email_count: conversion wasn't working, so we're trying to simplify it"
