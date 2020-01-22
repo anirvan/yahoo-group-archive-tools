@@ -880,6 +880,12 @@ sub run {
                         }
                     }
 
+                    unless (@textual_subparts) {
+                        if ( $email and $email->body =~ m/\w/ ) {
+                            push @textual_subparts, $email;
+                        }
+                    }
+
                    # A wide range of possible versions of the email to compare
                     my @email_strings_to_try;
 
