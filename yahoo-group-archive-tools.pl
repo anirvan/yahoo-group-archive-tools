@@ -173,7 +173,8 @@ sub run {
     my $destination_dir = io($destination_path)->dir;
     die "Can't access destination directory $destination_path\n"
         unless $destination_dir->exists
-        and $destination_dir->is_readable;
+        and $destination_dir->is_readable
+        and $destination_dir->is_writable;
 
     # 4. Get list name
 
@@ -733,15 +734,22 @@ sub run {
         unless $mbox_destination_dir->exists;
     die "Can't write to mbox output directory $mbox_destination_dir\n"
         unless $mbox_destination_dir->exists
-        and $mbox_destination_dir->is_readable;
+        and $mbox_destination_dir->is_readable
+        and $mbox_destination_dir->is_writable;
 
     my $mbox_file
         = $mbox_destination_dir->catfile("$list_file_name_prefix.mbox");
 
+    # We need to create a new mbox file if it doesn't exist, or if we
+    # wrote any new email files
     my $do_we_need_to_create_mbox = 0;
-    if ( !( $mbox_file and $mbox_file->exists and $mbox_file->size > 0 ) ) {
-        $do_we_need_to_create_mbox = 0;
-    } else {
+    if ( !$do_we_need_to_create_mbox ) {
+        unless ( $mbox_file and $mbox_file->exists and $mbox_file->size > 0 )
+        {
+            $do_we_need_to_create_mbox = 1;
+        }
+    }
+    if ( !$do_we_need_to_create_mbox ) {
         my $did_we_create_at_least_one_new_email_file
             = were_any_of_these_files_modified_after_the_script_began(
                                                       @generated_email_files);
