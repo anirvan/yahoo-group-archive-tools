@@ -343,20 +343,35 @@ sub run {
             # Some emails where the very last header line is
             # `X-eGroups-Approved-By:` do NOT have a return between
             # the header and body. This makes for icky broken emails,
-            # so we try to fix this. Right now, we check to see that
-            # the line after the X-eGroups-Approved-By: headers (a)
-            # does not start with whitespace, and (b) contains no
-            # colons, but this may not be enough. For example, what
-            # what happens if the normal content line contains a
-            # colon? If this turns out to be a problem, this regexp
-            # could probably be tightened up, but testing is hard, and
-            # this works in most cases for now.
+            # so we try to fix this. We check to see that the line
+            # after the X-eGroups-Approved-By: header is not a
+            # standard header line ("Header: "), or a potential
+            # continuation line (starts with whitespace), but contains
+            # non-blank characters that suggest standard body content.
 
             if ( $raw_message =~ m/X-eGroups-Approved-By/ ) {
                 my $raw_message_maybe_tweaked = $raw_message;
+
+                my $broken_egroups_fix_regexp = qr{
+
+# the first line should be preceded by a return,
+# then X-eGroups-Approved-By:,
+# followed by non-return chars, then a return char
+([\n\r]X-eGroups-Approved-By:\ [^\n\r]+\n)
+
+# Second line could not look like a normal header line.
+(?!\w\S*:[ \n\r])
+
+# It should not start with a space or tab
+(?![ \t])
+
+# But it should be non-blank
+([^\n\r]+(?:[\n\r]|\Z))
+
+		}sx;
+
                 if ( $raw_message_maybe_tweaked
-                    =~ s/([\n\r]X-eGroups-Approved-By: [^\n\r]+\n)((?!\s)[^:]+[\n\r])/$1\n\n$2/s
-                    ) {
+                     =~ s/$broken_egroups_fix_regexp/$1\n$2/ ) {
                     my $email_maybe_tweaked = eval {
                         local $SIG{__WARN__} = sub { };    # ignore warnings
                         Email::MIME->new($raw_message_maybe_tweaked);
