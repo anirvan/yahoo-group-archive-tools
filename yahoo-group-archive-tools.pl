@@ -7,6 +7,7 @@ use Email::Sender::Transport::Mbox;
 use File::Temp;
 use Getopt::Long 'GetOptions';
 use HTML::Entities 'decode_entities';
+use HTML::FormatText::WithLinks::AndTables;
 use IO::All 'io';
 use IPC::Cmd ();
 use JSON 'decode_json';
@@ -1011,6 +1012,39 @@ sub run {
                             $email->parts_set( [$subpart] );
                             push @email_strings_to_try, $email->as_string;
                         };
+                    }
+
+                    # We'll try manually converting HTML to text
+                    foreach my $subpart ( $textual_subparts[0],
+                                          $textual_subparts[1] ) {
+                        my $content_type
+                            = eval { $subpart->content_type } || '';
+                        if ( $content_type =~ m{^text/html\b}i ) {
+                            my $html_body = $subpart->body;
+                            my $text_body = eval {
+                                local $SIG{__WARN__}
+                                    = sub { };    # ignore warnings
+                                local $SIG{__DIE__} = sub { };   # ignore dies
+                                HTML::FormatText::WithLinks::AndTables
+                                    ->convert($html_body);
+                            };
+                            if ( defined $text_body
+                                 and $text_body =~ m/\w\w\w/ ) {
+                                $text_body =~ s/\n\n\n+/\n\n/g;
+                                my $new_subpart = eval {
+                                    local $SIG{__WARN__}
+                                        = sub { };    # ignore warnings
+                                    Email::MIME->new( $subpart->as_string );
+                                };
+                                if ( $new_subpart and ref $new_subpart ) {
+                                    $new_subpart->content_type_set(
+                                                                'text/plain');
+                                    $new_subpart->body_set($text_body);
+                                }
+                                $email->parts_set( [$new_subpart] );
+                                push @email_strings_to_try, $email->as_string;
+                            }
+                        }
                     }
 
                     # And this is extreme, but we'll try making the

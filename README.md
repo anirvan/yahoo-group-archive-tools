@@ -16,6 +16,7 @@ Many non-technical users won't know what to do with an mbox file, but will reall
   - Email::MIME
   - Email::Sender
   - HTML::Entities
+  - HTML::FormatText::WithLinks::AndTables
   - IO::All
   - IPC::Cmd
   - JSON
@@ -120,6 +121,7 @@ This tool directly executes the `email2pdf` script specified by the `--email2pdf
 
 Significant changes:
 
+* 2020-02-11: One more strategy to turn ornery emails into PDF
 * 2020-01-23: Fixes bug in some emails with X-eGroups-Approved-By: header
 * 2020-01-21: Fixes bug where PDF Date/Subject sometimes listed as 'ARRAY'
 * 2020-01-14: Uses qpdf to create combined PDFs for lists with many emails
