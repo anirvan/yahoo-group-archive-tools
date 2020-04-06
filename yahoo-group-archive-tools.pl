@@ -1434,8 +1434,13 @@ sub merge_pdf_files_using_qpdf {
     if ( $cmd_success and $output_file->exists and $output_file->size > 0 ) {
         return ( 1, $error_message );
     } else {
-        $error_message = $cmd_error_message || $cmd_full_buf || 'error';
-        return ( 0, $error_message );
+        my @error_message_parts = ( $cmd_error_message || 'unknown error' );
+        if ( $cmd_full_buf and @{$cmd_full_buf} ) {
+            push @error_message_parts, @{$cmd_full_buf};
+        }
+        @error_message_parts
+            = map { s/^\s+|\s+$//g; $_ } @error_message_parts;
+        return ( 0, join( '; ', @error_message_parts ) );
     }
 }
 
