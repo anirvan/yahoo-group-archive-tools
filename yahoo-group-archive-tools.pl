@@ -24,9 +24,9 @@ use strict;
 use utf8;
 use 5.14.0;
 
-my ( $source_path, $destination_path, $uniform_names,
-     $run_pdf,     $email2pdf_path,   $noclobber_pdf,
-     $noclobber_email
+my ( $source_path,     $destination_path, $uniform_names,
+     $run_pdf,         $email2pdf_path,   $noclobber_pdf,
+     $noclobber_email, $use_range_data,   $clobber_out_of_range,
 );
 
 my $log = logger();
@@ -59,6 +59,7 @@ OPTIONS
     --email2pdf       location of email2pdf Python script
     --noclobber-email do not regenerate an email file if it already exists
     --noclobber-pdf   do not regenerate a PDF file if it already exists
+    --range-file      look for an inclusion range file, if present
 
     --help            print this help message
 
@@ -78,17 +79,20 @@ END
     my $verbosity_loudest = 0;
     my $verbosity_loud    = 0;
     my $verbosity_quiet   = 0;
-    my $getopt_worked = GetOptions( 'source=s'        => \$source_path,
-                                    'destination=s'   => \$destination_path,
-                                    'uniform-names'   => \$uniform_names,
-                                    'v|verbose'       => \$verbosity_loud,
-                                    'quiet'           => \$verbosity_quiet,
-                                    'noisy'           => \$verbosity_loudest,
-                                    'help'            => \$do_help,
-                                    'pdf'             => \$run_pdf,
-                                    'email2pdf=s'     => \$email2pdf_path,
-                                    'noclobber-email' => \$noclobber_email,
-                                    'noclobber-pdf'   => \$noclobber_pdf,
+    my $getopt_worked = GetOptions(
+                             'source=s'             => \$source_path,
+                             'destination=s'        => \$destination_path,
+                             'uniform-names'        => \$uniform_names,
+                             'v|verbose'            => \$verbosity_loud,
+                             'quiet'                => \$verbosity_quiet,
+                             'noisy'                => \$verbosity_loudest,
+                             'help'                 => \$do_help,
+                             'pdf'                  => \$run_pdf,
+                             'email2pdf=s'          => \$email2pdf_path,
+                             'noclobber-email'      => \$noclobber_email,
+                             'noclobber-pdf'        => \$noclobber_pdf,
+                             'range-file'           => \$use_range_data,
+                             'clobber-out-of-range' => \$clobber_out_of_range,
     );
 
     unless ($getopt_worked) {
@@ -220,7 +224,22 @@ sub run {
         $list_file_name_prefix = $list_name;
     }
 
-    # 6. Write individual email files
+    # 6. Get range file, if needed
+
+    my %email_ids_to_use;
+    if ($use_range_data) {
+        my $meta_dir   = $destination_dir->catdir('meta');
+        my $range_file = $meta_dir->catfile('emails_to_process.txt');
+        if ( $range_file->exists ) {
+            foreach my $line ( $range_file->getlines ) {
+                foreach my $number ( $line =~ m/\b(\d+)\b/g ) {
+                    $email_ids_to_use{$1} = 1;
+                }
+            }
+        }
+    }
+
+    # 7. Write individual email files
 
     my $email_destination_dir = $destination_dir->catdir('email');
     $email_destination_dir->mkdir unless $email_destination_dir->exists;
@@ -231,11 +250,12 @@ sub run {
     my $email_count = 0;
     my $email_max   = scalar @email_filenames;
     my @generated_email_files;
+    my $do_we_need_to_create_mbox = 0;
 
     foreach my $email_filename (@email_filenames) {
         $email_count++;
 
-        # 6.1 Open the raw.json file, load the email
+        # 7.1 Open the raw.json file, load the email
 
         my ( $email_json,     $email_record, $email_message_id,
              $email_topic_id, $email_file );
@@ -245,6 +265,26 @@ sub run {
             $email_file
                 = $email_destination_dir->catfile("$email_message_id.eml");
         }
+
+        # 7.2 If the range file says to skip the email, then we skip,
+        #     and delete the file if it already exists
+
+        if ( %email_ids_to_use and !$email_ids_to_use{$email_message_id} ) {
+            $log->debug(
+                "[$list_name] message $email_message_id: skipping $email_file, which is not in range file ($email_count of $email_max)"
+            );
+            if ( $email_file->exists and $clobber_out_of_range ) {
+                $email_file->unlink;
+                $log->info(
+                    qq{[$list_name] deleted unwanted/unknown email file $email_file}
+                );
+                $do_we_need_to_create_mbox = 1;
+            }
+            next;
+        }
+
+        # 7.3. If the email is wanted, reuse the existing file if
+        #      noclobber, or get ready to write it
 
         if (     $noclobber_email
              and $email_file->exists
@@ -263,7 +303,7 @@ sub run {
                 = $email_destination_dir->catfile("$email_message_id.eml");
         }
 
-        # 6.2. Grab info on each attachment from [number].json files
+        # 7.4. Grab info on each attachment from [number].json files
 
         # Attachment descriptions (e.g. filename) can live in 3 places:
         # - /email/[email message id].json
@@ -325,7 +365,7 @@ sub run {
 
         }
 
-        # 6.3. Load the email from the Yahoo API JSON data
+        # 7.5. Load the email from the Yahoo API JSON data
 
         if ( $email_record->{rawEmail} ) {
             my $raw_message = decode_entities( $email_record->{rawEmail} );
@@ -383,7 +423,7 @@ sub run {
                 }
             }
 
-            # 6.4. Fix redacted email headers! Many of the headers
+            # 7.6. Fix redacted email headers! Many of the headers
             #      have the email domain names redacted, e.g. a 'From'
             #      header set to "Fred Jones <fred.jones@...>". We
             #      happen to know either the user's Yahoo profile
@@ -423,7 +463,7 @@ sub run {
                 }
             }
 
-            # 6.5. Yahoo Groups API detaches all attachments, so we go
+            # 7.7. Yahoo Groups API detaches all attachments, so we go
             #      through all the message parts, try to guess which
             #      attachments go where, and manually reattach them
 
@@ -686,7 +726,7 @@ sub run {
                 );
             }
 
-            # 6.6. In some cases, there can be attachments that were
+            # 7.8. In some cases, there can be attachments that were
             #      not re-attached because we didn't find a reference
             #      to them in one of the message parts. In those
             #      cases, we go through the list of un-reattached
@@ -725,7 +765,7 @@ sub run {
                 }
             }
 
-            # 6.7. Write the RFC822 email to disk
+            # 7.9. Write the RFC822 email to disk
 
             $email_file->unlink if $email_file->exists;
             $email_file->print( $email->as_string );
@@ -741,7 +781,7 @@ sub run {
                   scalar(@generated_email_files),
                   "email files in $destination_dir/email" );
 
-    # 7. Write mbox file, consisting of all the RFC822 emails we wrote
+    # 8. Write mbox file, consisting of all the RFC822 emails we wrote
     #    to disk. Do this by re-reading the emails from disk, one at a
     #    time, to lower memory usage for large lists.
 
@@ -758,7 +798,6 @@ sub run {
 
     # We need to create a new mbox file if it doesn't exist, or if we
     # wrote any new email files
-    my $do_we_need_to_create_mbox = 0;
     if ( !$do_we_need_to_create_mbox ) {
         unless ( $mbox_file and $mbox_file->exists and $mbox_file->size > 0 )
         {
@@ -792,11 +831,11 @@ sub run {
         );
     }
 
-    # 8. Create PDF files
+    # 9. Create PDF files
 
     if ($run_pdf) {
 
-        # 8.1 Create individual PDF files
+        # 9.1 Create individual PDF files
 
         $log->notice(
             qq{[$list_name] attempting to run experimental email2pdf conversion. If this fails immediately, try running "$email2pdf_path -h" and make sure it returns help text.}
@@ -1152,7 +1191,7 @@ sub run {
         @pdf_file_paths = grep {$_} @pdf_file_paths;
         @pdf_file_paths = sort { ncmp( $a, $b ) } @pdf_file_paths;
 
-        # 8.2 Create merged PDF file
+        # 9.2 Create merged PDF file
 
         @pdf_files = map { io($_)->file } @pdf_file_paths;
         my $combined_pdf_file
@@ -1162,7 +1201,27 @@ sub run {
         # But if we're in noclobber mode, do it if and only if we
         #   actually wrote some new PDF files.
         my $do_we_need_to_create_combined_pdf = 0;
-        if (@pdf_files) {
+
+        if ($clobber_out_of_range) {
+            my %pdf_file_paths_on_disk;
+            foreach my $pdf_file_on_disk ( $pdf_dir->all ) {
+                $pdf_file_paths_on_disk{ $pdf_file_on_disk->name } = 1;
+            }
+            foreach my $wanted_pdf_file_path (@pdf_file_paths) {
+                delete $pdf_file_paths_on_disk{$wanted_pdf_file_path};
+            }
+            foreach my $file_path ( keys %pdf_file_paths_on_disk ) {
+                my $unwanted_file = io($file_path)->file;
+                if ( $unwanted_file->exists ) {
+                    $log->info(
+                        qq{[$list_name] deleted unwanted/unknown PDF file $unwanted_file}
+                    );
+                }
+                $do_we_need_to_create_combined_pdf = 1;
+            }
+        }
+
+        if ( !$do_we_need_to_create_combined_pdf and @pdf_files ) {
             $do_we_need_to_create_combined_pdf = 1;
             if ( $noclobber_pdf and $combined_pdf_file->exists ) {
                 my $did_we_create_at_least_one_new_pdf_file
