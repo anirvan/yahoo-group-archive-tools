@@ -326,8 +326,8 @@ sub run {
                                 @{ $email_meta_record->{attachmentsInfo} } ) {
                         if ( $attachment_record->{fileId} ) {
                             $unseen_attachment_file_id_to_details{
-                                $attachment_record->{fileId}
-                            } = $attachment_record;
+                                $attachment_record->{fileId} }
+                                = $attachment_record;
                         }
                     }
                 }
@@ -448,7 +448,7 @@ sub run {
                         =~ s{@\.\.\.>}{\@$yahoo_identifier.yahoo.invalid>}g
                         or $fixed_header_text
                         =~ s{^([^<]+@)\.\.\.$}{$1$yahoo_identifier.yahoo.invalid}g
-                        ) {
+                    ) {
                         $email->header_set( $header_name,
                                             $fixed_header_text );
 
@@ -577,8 +577,8 @@ sub run {
                             = undef;    # can emit lots of warnings
                         return if $part->subparts;
 
-                        my $body     = eval { $part->body };
-                        my $body_raw = eval { $part->body_raw };
+                        my $body         = eval { $part->body };
+                        my $body_raw     = eval { $part->body_raw };
                         my $content_type = eval {
                             local $SIG{__WARN__} = sub { };
                             return $part->content_type;
@@ -903,7 +903,7 @@ sub run {
 
             if ( !$ok ) {
                 my $email_raw = eval { io($email_file)->file->binary->all };
-                my $email = eval {
+                my $email     = eval {
                     local $SIG{__WARN__} = sub { };    # ignore warnings
                     Email::MIME->new($email_raw);
                 };
@@ -1442,10 +1442,9 @@ sub build_pdf {
 
     my ( $ok, @warnings );
 
-    my @system_args = ( $email2pdf_path, '--headers',
-                        '-i',            $email_file->name,
-                        '--output-file', $temp_pdf_file->name,
-                        '--mostly-hide-warnings'
+    my @system_args = (
+               $email2pdf_path, '--headers', '-i', $email_file->name,
+               '--output-file', $temp_pdf_file->name, '--mostly-hide-warnings'
     );
 
     my ( $cmd_success,    $cmd_error_message, $cmd_full_buf,
@@ -1470,7 +1469,7 @@ sub build_pdf {
     if ( $maybe_error_file->exists ) {
         @warnings = $maybe_error_file->getlines;
         @warnings = grep {m/\w/} @warnings;
-        @warnings = map { chomp; s/[\s\r\n]+/ /g; $_ } @warnings;
+        @warnings = map  { chomp; s/[\s\r\n]+/ /g; $_ } @warnings;
     }
 
     return ( $ok, \@warnings );
