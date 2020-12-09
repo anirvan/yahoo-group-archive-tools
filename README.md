@@ -23,6 +23,7 @@ Many non-technical users won't know what to do with an mbox file, but will reall
   - List::AllUtils
   - Log::Dispatch
   - MCE
+  - Pandoc
   - Sort::Naturally
   - Text::Levenshtein::XS
   - autodie

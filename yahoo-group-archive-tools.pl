@@ -6,7 +6,7 @@ use Email::MIME;
 use Email::Sender::Transport::Mbox;
 use File::Temp;
 use Getopt::Long 'GetOptions';
-use HTML::Entities 'decode_entities';
+use HTML::Entities 'decode_entities', 'encode_entities';
 use HTML::FormatText::WithLinks::AndTables;
 use IO::All 'io';
 use IPC::Cmd ();
@@ -15,6 +15,7 @@ use List::AllUtils 'natatime';
 use Log::Dispatch;
 use MCE::Loop;
 use MCE::Util;
+use Pandoc 'pandoc';
 use Sort::Naturally 'ncmp';
 use Text::Levenshtein::XS;
 use autodie;
@@ -181,17 +182,136 @@ sub run {
         and $destination_dir->is_readable
         and $destination_dir->is_writable;
 
-    # 4. Get list name
+    # 4. Get list name and description
 
-    my $list_name;
+    my ( $list_name, @list_description_chunks, $about_file );
     {
-        my $about_file = io($source_dir)->catfile( 'about', 'about.json' );
+        $about_file = io($source_dir)->catfile( 'about', 'about.json' );
         unless ( defined $list_name ) {
             if (     $about_file->exists
                  and $about_file->is_readable ) {
                 my $json  = $about_file->all;
                 my $about = decode_json($json);
                 $list_name = $about->{name} if $about->{name};
+
+                # extract description and meta data, clean up as
+                # needed, and save as an ordered list of fields,
+                # usually in plain text, but sometimes as HTML
+                {
+                    push @list_description_chunks,
+                        { heading => 'Title', text => $about->{title} };
+
+		    if ($about->{website}) {
+			push @list_description_chunks,
+                            { heading => 'Website', text => $about->{website} };
+		    }
+
+                    if ( $about->{description} ) {
+                        my $list_description_html = $about->{description};
+                        $list_description_html =~ s/^\s+|\s+$//g;
+                        $list_description_html
+                            =~ s{^<div id="ygrps-yiv-\d+">(.*)</div>$}{<p>$1</p>}sgi;
+                        $list_description_html
+                            =~ s{<a rel="nofollow" target="_blank"}{<a}sgi;
+
+                        my $attempted_text = eval {
+                            local $SIG{__WARN__} = sub { };  # ignore warnings
+                            local $SIG{__DIE__}  = sub { };  # ignore dies
+                            HTML::FormatText::WithLinks::AndTables->convert(
+                                 $list_description_html,
+                                 { leftmargin => 0, rightmargin => 1_000_000 }
+                            );
+                        };
+
+                        push @list_description_chunks,
+                            { heading        => 'Description',
+                              html           => $list_description_html,
+                              text_converted => $attempted_text,
+                            };
+                    }
+
+                    if ( $about->{trailer} ) {
+                        my $trailer__html_encoded = $about->{trailer};
+                        my $trailer = decode_entities($trailer__html_encoded);
+
+                        my $trailer_html = $trailer__html_encoded;
+			if ($trailer_html =~ m/(^ |  )/m) {
+			    $trailer_html =~ s/ /\N{NO-BREAK SPACE}/g;
+			}
+                        $trailer_html
+                            =~ s/(?:\r\n|\r|\n)/<br class="return-to-br">/g;
+
+                        push @list_description_chunks,
+                            { heading => 'Trailer',
+                              text    => $trailer,
+                              html    => $trailer_html,
+                            };
+                    }
+
+                    my @membership_parts;
+                    if (     $about->{memberShipType}
+                         and $about->{memberShipType} eq 'RESTRICTED' ) {
+                        push @membership_parts,
+                            'Subscription requires approval';
+                    } elsif (     $about->{memberShipType}
+                              and $about->{memberShipType} eq 'OPEN' ) {
+                        push @membership_parts, 'Anyone can subscribe';
+                    }
+                    if (     $about->{messagePost}
+                         and $about->{messagePost} eq 'SUBSCRIBERS' ) {
+                        push @membership_parts, 'Only subscribers can post';
+                    } elsif (     $about->{messagePost}
+                              and $about->{messagePost} eq 'ALL' ) {
+                        push @membership_parts, 'Anyone can post';
+                    }
+                    if (     $about->{messagesVis}
+                         and $about->{messagesVis} eq 'ALL' ) {
+                        push @membership_parts,
+                            'Anyone can see archived messages';
+                    } elsif (     $about->{messagesVis}
+                              and $about->{messagesVis} eq 'SUBSCRIBERS' ) {
+                        push @membership_parts,
+                            'Only subscribers can see archived messages';
+                    }
+                    if (@membership_parts) {
+                        push @list_description_chunks,
+                            {heading => 'Access',
+                             text    =>
+                                 join( '', map {"* $_\n"} @membership_parts ),
+                             html => '<ul>'
+                                 . join( "\n",
+                                       map {"<li>$_</li>"} @membership_parts )
+                                 . '</ul>'
+                            };
+                    }
+
+                    if ( $about->{name} and $about->{emailDomain} ) {
+			push @list_description_chunks,
+                            { heading => 'List Email', text => "$about->{name}\@$about->{emailDomain}" };
+		    }
+
+                    if ( $about->{webDomain} and $about->{name} ) {
+			push @list_description_chunks,
+			{ heading => 'List Website', text => "$about->{webDomain}groups/$about->{name}" };
+		    }
+
+                    my $category_pretty = $about->{categoryPath};
+                    $category_pretty =~ s{^\s*/\s*|\s*/\s*$}{}g;
+                    $category_pretty =~ s{\s*/\s*}{ → }g;
+                    push @list_description_chunks,
+                        { heading => 'Category', text => $category_pretty };
+                    push @list_description_chunks,
+                        { heading => 'Country', text => $about->{intlCode} };
+
+                    my $created_ymd
+                        = time2str( '%Y-%m-%d', $about->{dateCreated} );
+                    push @list_description_chunks,
+                        { heading => 'Date Created', text => $created_ymd };
+
+                    @list_description_chunks
+                        = grep { $_->{html} or $_->{text} }
+                        @list_description_chunks;
+                }
             }
         }
 
@@ -1381,6 +1501,94 @@ sub run {
 
     }
 
+    # 10. Create about metadata files
+    {
+        my $about_destination_dir = $destination_dir->catdir('about');
+        $about_destination_dir->rmtree if $about_destination_dir->exists;
+        $about_destination_dir->mkdir;
+        die "Can't write to email output directory $about_destination_dir\n"
+            unless $about_destination_dir->exists
+            and $about_destination_dir->is_readable;
+
+        if ( $about_file->exists ) {
+            my $about_json_file = $about_destination_dir->catfile(
+                                                'about [original json].json');
+            $about_json_file->unlink if $about_json_file->exists;
+            $about_file->copy( $about_json_file->name );
+        }
+
+        # save as HTML, and Markdown if at all possible
+        {
+            my $html = '';
+            foreach my $chunk (@list_description_chunks) {
+                $html
+                    .= '<h2>'
+                    . HTML::Entities::encode_entities( $chunk->{heading} )
+                    . '</h2>' . "\n\n";
+                if ( $chunk->{html} ) {
+                    my $html_chunk_cleaned_up = $chunk->{html};
+                    $html_chunk_cleaned_up
+                        =~ s/<br class="return-to-br">/<br>/g;
+                    $html .= '<div>' . $html_chunk_cleaned_up . "</div>\n\n";
+                } elsif ( $chunk->{text} ) {
+                    $html
+                        .= '<div>'
+                        . HTML::Entities::encode_entities( $chunk->{text} )
+                        . "</div>\n\n";
+                }
+            }
+
+            my $about_html_file = $about_destination_dir->catfile(
+                                             'about [raw html snippet].html');
+            $about_html_file->unlink if $about_html_file->exists;
+            $about_html_file->utf8->print($html);
+            $about_html_file->close;
+
+            if ( do_we_have_pandoc_installed() ) {
+                my $markdown        = '';
+                my $html_cleaned_up = $html;
+                $html_cleaned_up =~ s/<br>/\n/g;
+                $html_cleaned_up =~ s/<br class="return-to-br">/<br>/g;
+                my $pandoc_ok = eval {
+                    pandoc( -f          => 'html',
+                            -t          => 'markdown_strict',
+                            '--columns' => 1_000_000,
+                            { in => \$html_cleaned_up, out => \$markdown }
+                    ) ? 0 : 1;
+                };
+
+                if ( $pandoc_ok and $markdown ) {
+                    $markdown =~ s/\\_/_/g;
+                    my $about_markdown_file = $about_destination_dir->catfile(
+                                                     'about [markdown].text');
+                    $about_markdown_file->unlink
+                        if $about_markdown_file->exists;
+                    $about_markdown_file->print($markdown);
+                    $about_markdown_file->close;
+                }
+            }
+
+        }
+
+        # save as text
+        {
+            my $text = '';
+            foreach my $chunk (@list_description_chunks) {
+                $text .= "\U$chunk->{heading}:\n\n";
+                $text .= ( $chunk->{text} || $chunk->{text_converted} )
+                    . "\n\n";
+            }
+            $text =~ s/\n\n\n+/\n\n/g;
+
+            my $about_text_file = $about_destination_dir->catfile(
+                                             'about [unstructured text].txt');
+            $about_text_file->unlink if $about_text_file->exists;
+            $about_text_file->utf8->print($text);
+            $about_text_file->close;
+        }
+
+    }
+
     return;
 }
 
@@ -1505,6 +1713,11 @@ sub merge_pdf_files_using_qpdf {
 sub do_we_have_qpdf_installed {
     state $do_we_have_qpdf_installed = IPC::Cmd::can_run('qpdf');
     return $do_we_have_qpdf_installed;
+}
+
+sub do_we_have_pandoc_installed {
+    state $do_we_have_pandoc_installed = IPC::Cmd::can_run('pandoc');
+    return $do_we_have_pandoc_installed;
 }
 
 # takes one or more IO::All files
