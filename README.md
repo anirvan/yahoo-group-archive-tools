@@ -122,6 +122,8 @@ This tool directly executes the `email2pdf` script specified by the `--email2pdf
 
 Significant changes:
 
+* 2020-12-09: Saves list description metadata in several formats
+* 2020-04-07: Can process only specific emails, helpful for spam filtering
 * 2020-02-11: One more strategy to turn ornery emails into PDF
 * 2020-01-23: Fixes bug in some emails with X-eGroups-Approved-By: header
 * 2020-01-21: Fixes bug where PDF Date/Subject sometimes listed as 'ARRAY'
